@@ -26,21 +26,21 @@ INSTRUMENTS = {
         "icon": "flask",
     },
     "ERL-250": {
-        "name": "Erlenmeyer 250 mL",
+        "name": "Matraz Erlenmeyer 250 mL",
         "type": "contenedor",
         "capacity": 250,
         "unit": "mL",
         "icon": "erlenmeyer",
     },
     "ERL-100": {
-        "name": "Erlenmeyer 100 mL",
+        "name": "Matraz Erlenmeyer 100 mL",
         "type": "contenedor",
         "capacity": 100,
         "unit": "mL",
         "icon": "erlenmeyer",
     },
     "ERL-050": {
-        "name": "Erlenmeyer 50 mL",
+        "name": "Matraz Erlenmeyer 50 mL",
         "type": "contenedor",
         "capacity": 50,
         "unit": "mL",
@@ -397,7 +397,7 @@ DISTRACTORS = {
         "icon": "graduated-cyl",
     },
     "ERL-500": {
-        "name": "Erlenmeyer 500 mL",
+        "name": "Matraz Erlenmeyer 500 mL",
         "type": "contenedor",
         "capacity": 500,
         "unit": "mL",

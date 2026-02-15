@@ -17,7 +17,7 @@ PRACTICE_5 = {
     "requiredReagents": ["TAMPON-PH10", "IND-NET", "EDTA-001M"],
     "requiredSample": "AGUA-LLAVE",
 
-    "distractorInstruments": ["PRO-100", "ERL-100", "ERL-500", "BUR-025", "MAT-250", "PIP-V10"],
+    "distractorInstruments": ["PRO-100", "ERL-100", "ERL-500", "BUR-025", "PIP-V10"],
     "distractorReagents": ["EDTA-010M", "IND-FENOL", "IND-K2CRO4", "KOH-050M", "HCL-050M"],
 
     # Stage 3: Measurement

@@ -1,17 +1,24 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Stage, Layer, Line, Rect, Text, Group } from 'react-konva';
+import { Stage, Layer, Line, Rect, Text, Group, Image } from 'react-konva';
+import { useLabIconImage } from './labIconKonva';
 
-const ITEM_W = 120;
-const ITEM_H = 36;
-const INST_COLOR = '#DBEAFE';
-const INST_STROKE = '#3B82F6';
-const REAG_COLOR = '#DCFCE7';
-const REAG_STROKE = '#16A34A';
+const ICON_SIZE = 56;
+const ITEM_W = 88;
+const ITEM_H = 96;
+const ICON_Y = 6;
+const LABEL_Y = ICON_Y + ICON_SIZE + 3;
+const LABEL_H = ITEM_H - LABEL_Y - 4;
+
+const INST_BG = '#EFF6FF';
+const INST_STROKE = '#93C5FD';
+const REAG_BG = '#F0FDF4';
+const REAG_STROKE = '#86EFAC';
 
 function BenchItem({ item, onRemove, onDragEnd }) {
   const isInstrument = item.kind === 'instrument';
-  const fill = isInstrument ? INST_COLOR : REAG_COLOR;
+  const bg = isInstrument ? INST_BG : REAG_BG;
   const stroke = isInstrument ? INST_STROKE : REAG_STROKE;
+  const iconImage = useLabIconImage(item.iconKey, ICON_SIZE);
 
   return (
     <Group
@@ -23,28 +30,43 @@ function BenchItem({ item, onRemove, onDragEnd }) {
         onDragEnd(item.id, e.target.x(), e.target.y());
       }}
     >
+      {/* Card background */}
       <Rect
         width={ITEM_W}
         height={ITEM_H}
-        fill={fill}
+        fill={bg}
         stroke={stroke}
         strokeWidth={1.5}
-        cornerRadius={6}
-        shadowColor="rgba(0,0,0,0.1)"
-        shadowBlur={4}
+        cornerRadius={8}
+        shadowColor="rgba(0,0,0,0.12)"
+        shadowBlur={6}
         shadowOffsetY={2}
       />
+
+      {/* Large icon — centered horizontally */}
+      <Image
+        x={(ITEM_W - ICON_SIZE) / 2}
+        y={ICON_Y}
+        width={ICON_SIZE}
+        height={ICON_SIZE}
+        image={iconImage}
+        opacity={iconImage ? 1 : 0}
+      />
+
+      {/* Name label below */}
       <Text
-        x={6}
-        y={4}
-        width={ITEM_W - 12}
-        height={ITEM_H - 4}
+        x={4}
+        y={LABEL_Y}
+        width={ITEM_W - 8}
+        height={LABEL_H}
         text={item.name}
-        fontSize={11}
+        fontSize={9.5}
         fontFamily="'IBM Plex Sans', sans-serif"
-        fill="#1E293B"
+        fill="#334155"
+        align="center"
+        verticalAlign="top"
         wrap="word"
-        verticalAlign="middle"
+        lineHeight={1.15}
       />
     </Group>
   );
@@ -57,7 +79,7 @@ export default function LabBench({
   onMoveItem,
 }) {
   const containerRef = useRef(null);
-  const [size, setSize] = useState({ width: 700, height: 480 });
+  const [size, setSize] = useState({ width: 700, height: 620 });
 
   // Responsive sizing
   useEffect(() => {
@@ -98,10 +120,9 @@ export default function LabBench({
     const category = e.dataTransfer.getData('application/x-item-category');
     if (!itemId) return;
 
-    // Compute drop position relative to the stage
     const rect = containerRef.current.getBoundingClientRect();
-    const x = Math.max(20, Math.min(e.clientX - rect.left - ITEM_W / 2, size.width - ITEM_W - 20));
-    const y = Math.max(20, Math.min(e.clientY - rect.top - ITEM_H / 2, size.height - ITEM_H - 20));
+    const x = Math.max(10, Math.min(e.clientX - rect.left - ITEM_W / 2, size.width - ITEM_W - 10));
+    const y = Math.max(10, Math.min(e.clientY - rect.top - ITEM_H / 2, size.height - ITEM_H - 10));
     onAddFromDrop(itemId, category, x, y);
   };
 

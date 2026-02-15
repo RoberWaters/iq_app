@@ -13,6 +13,7 @@ export default function S3_Measurement() {
 
   const [volume, setVolume] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
+  const [isFilling, setIsFilling] = useState(false);
 
   const fillInterval = useRef(null);
 

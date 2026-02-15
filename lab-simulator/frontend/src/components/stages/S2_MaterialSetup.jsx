@@ -10,15 +10,17 @@ import '../../styles/stages.css';
 
 // Placement grid: items get arranged in rows on the table
 function nextPosition(existingItems, canvasWidth) {
-  const startX = 60;
-  const startY = 40;
-  const gapX = 140;
-  const gapY = 50;
-  const cols = Math.max(1, Math.floor((canvasWidth - 80) / gapX));
+  const itemW = 88;
+  const itemH = 96;
+  const padX = 14;
+  const padY = 12;
+  const startX = 30;
+  const startY = 20;
+  const cols = Math.max(1, Math.floor((canvasWidth - startX * 2 + padX) / (itemW + padX)));
   const n = existingItems.length;
   const col = n % cols;
   const row = Math.floor(n / cols);
-  return { x: startX + col * gapX, y: startY + row * gapY };
+  return { x: startX + col * (itemW + padX), y: startY + row * (itemH + padY) };
 }
 
 export default function S2_MaterialSetup() {
@@ -59,10 +61,14 @@ export default function S2_MaterialSetup() {
   const totalRequired = (practiceConfig?.requiredInstruments?.length || 0) + (practiceConfig?.requiredReagents?.length || 0);
   const totalSelected = selectedInstruments.length + selectedReagents.length;
 
-  // Resolve item name for the bench
-  const getItemName = useCallback((id) => {
+  // Resolve item info for the bench
+  const getItemInfo = useCallback((id) => {
     const all = { ...INSTRUMENTS, ...DISTRACTORS, ...REAGENTS };
-    return all[id]?.name || id;
+    const entry = all[id];
+    return {
+      name: entry?.name || id,
+      iconKey: entry?.icon || entry?.category || null,
+    };
   }, []);
 
   // Add item (from click or drop)
@@ -80,10 +86,11 @@ export default function S2_MaterialSetup() {
     const pos = (x != null && y != null)
       ? { x, y }
       : nextPosition(benchItems, benchWidthRef.current);
-    setBenchItems((prev) => [...prev, { id, name: getItemName(id), kind, ...pos }]);
+    const info = getItemInfo(id);
+    setBenchItems((prev) => [...prev, { id, name: info.name, kind, iconKey: info.iconKey, ...pos }]);
     setVerified(false);
     setErrors([]);
-  }, [selectedInstruments, selectedReagents, toggleInstrument, toggleReagent, benchItems, getItemName]);
+  }, [selectedInstruments, selectedReagents, toggleInstrument, toggleReagent, benchItems, getItemInfo]);
 
   // Add from sidebar click
   const handleAddFromStand = useCallback((id, kind) => {

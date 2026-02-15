@@ -66,7 +66,7 @@
 .s2-lab-layout {
   display: flex;
   gap: 20px;
-  min-height: 520px;
+  min-height: 700px;
 }
 
 .s2-main-area {
@@ -163,8 +163,12 @@
 }
 
 .stand-item-icon {
-  font-size: 1.1rem;
   flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .stand-item-name {
@@ -181,7 +185,7 @@
 /* Lab Bench Canvas */
 .lab-bench-canvas {
   flex: 1;
-  min-height: 400px;
+  min-height: 620px;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);

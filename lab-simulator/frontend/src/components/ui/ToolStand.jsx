@@ -1,25 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const TYPE_ICONS = {
-  medicion: '\u{1F4CF}',
-  contenedor: '\u{1F3FA}',
-  dosificacion: '\u{1F9EA}',
-  accesorio: '\u{1F527}',
-  indicator: '\u{1F7E3}',
-  acid: '\u26A0\uFE0F',
-  base: '\u{1F7E6}',
-  salt: '\u{1F7E1}',
-  buffer: '\u{1F7E2}',
-  chelator: '\u{1F535}',
-  oxidant: '\u{1F7E0}',
-  reductant: '\u{1F7E4}',
-  organic: '\u{1F7E1}',
-  solvent: '\u{1F4A7}',
-};
+import LabIcon from './LabIcon';
 
 function StandItem({ item, selected, onAdd }) {
-  const icon = TYPE_ICONS[item.type] || TYPE_ICONS[item.category] || '\u{1F52C}';
+  // For instruments use the `icon` field; for reagents use the `category` field
+  const iconName = item.icon || item.category;
 
   const handleDragStart = (e) => {
     e.dataTransfer.setData('application/x-item-id', item.id);
@@ -37,7 +22,9 @@ function StandItem({ item, selected, onAdd }) {
       whileTap={selected ? {} : { scale: 0.97 }}
       layout
     >
-      <span className="stand-item-icon">{icon}</span>
+      <span className="stand-item-icon">
+        <LabIcon name={iconName} size={22} />
+      </span>
       <span className="stand-item-name">{item.name}</span>
       {selected && <span className="stand-item-check">{'\u2713'}</span>}
     </motion.div>
