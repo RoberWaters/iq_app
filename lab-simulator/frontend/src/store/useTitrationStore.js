@@ -4,6 +4,7 @@ import {
   stretchTransitionsNearEndpoint,
   lightenTransitions,
   darkenTransitions,
+  scaleTransitionsByDrops,
 } from '../utils/colorInterpolation';
 
 const useTitrationStore = create((set, get) => ({
@@ -27,7 +28,9 @@ const useTitrationStore = create((set, get) => ({
     if (modifiers.bufferQuality === 'poor') {
       transitions = stretchTransitionsNearEndpoint(transitions);
     }
-    if (modifiers.indicatorIntensity === 'faint') {
+    if (modifiers.indicatorDrops != null) {
+      transitions = scaleTransitionsByDrops(transitions, modifiers.indicatorDrops, 10);
+    } else if (modifiers.indicatorIntensity === 'faint') {
       transitions = lightenTransitions(transitions);
     } else if (modifiers.indicatorIntensity === 'dark') {
       transitions = darkenTransitions(transitions);
@@ -103,7 +106,7 @@ const useTitrationStore = create((set, get) => ({
   // Reset
   resetTitration: () => set({
     volumeAdded: 0,
-    currentColor: '#CD5C5C',
+    currentColor: '#D07070',
     isDropping: false,
     endpointReached: false,
   }),

@@ -22,7 +22,7 @@ export default function LabBench({ width = 500, height = 600 }) {
             y={buretteY}
             volumeAdded={volumeAdded}
             maxVolume={maxBuretteVolume}
-            liquidColor="#F0F0F0"
+            liquidColor="#C8D8E8"
           />
 
           {/* Drop animation */}

@@ -44,11 +44,8 @@ export default function S5_Execution() {
         else if (bufferVolume > thresholds.excess) modifiers.bufferQuality = 'excess';
         else modifiers.bufferQuality = 'good';
       }
-      if (assemblyConfig?.indicator?.intensityThresholds && indicatorDrops != null) {
-        const thresholds = assemblyConfig.indicator.intensityThresholds;
-        if (indicatorDrops < thresholds.faint) modifiers.indicatorIntensity = 'faint';
-        else if (indicatorDrops > thresholds.dark) modifiers.indicatorIntensity = 'dark';
-        else modifiers.indicatorIntensity = 'normal';
+      if (indicatorDrops != null) {
+        modifiers.indicatorDrops = indicatorDrops;
       }
 
       initTitration(titration, expectedVol, modifiers);

@@ -121,7 +121,6 @@ export default function AssemblyBench({
                 x={leftX} y={50}
                 capacity={maxCylinderVolume}
                 currentVolume={cylinderVolume}
-                liquidColor="#93C5FD"
               />
               <Text
                 x={leftX - 30} y={benchY - 25}
@@ -144,7 +143,7 @@ export default function AssemblyBench({
               fromX={leftX - 10} fromY={50}
               toX={rightX} toY={erlenmeyerY + 5}
               isPouring={isAnimating && currentStep === 2}
-              color="#93C5FD"
+              color="#C0D0DA"
             />
           </>
         )}

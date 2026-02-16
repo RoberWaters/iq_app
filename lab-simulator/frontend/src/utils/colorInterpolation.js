@@ -154,6 +154,31 @@ export function lightenTransitions(transitions) {
 }
 
 /**
+ * Continuously scale transition colors based on indicator drop count.
+ * Fewer drops → lighter and less saturated (faint indicator).
+ * At maxDrops or more → no modification (full intensity).
+ * @param {Array} transitions - Color transition array
+ * @param {number} drops - Actual indicator drop count
+ * @param {number} maxDrops - Drop count for full intensity (default 10)
+ */
+export function scaleTransitionsByDrops(transitions, drops, maxDrops = 10) {
+  const factor = Math.max(0, 1 - drops / maxDrops);
+  if (factor <= 0) return transitions;
+
+  const maxLighten = 25;
+  const maxDesaturate = 15;
+
+  return transitions.map(t => {
+    const rgb = hexToRgb(t.color);
+    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    hsl.l = Math.min(100, hsl.l + factor * maxLighten);
+    hsl.s = Math.max(0, hsl.s - factor * maxDesaturate);
+    const newRgb = hslToRgb(hsl.h, hsl.s, hsl.l);
+    return { ...t, color: rgbToHex(newRgb.r, newRgb.g, newRgb.b) };
+  });
+}
+
+/**
  * Darken all transition colors — decreases lightness -15, decreases saturation -10.
  * Makes indicator colors murky and hard to read.
  */

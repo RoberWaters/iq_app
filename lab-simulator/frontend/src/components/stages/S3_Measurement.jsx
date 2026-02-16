@@ -22,7 +22,8 @@ export default function S3_Measurement() {
 
   // Hold-to-fill logic
   const startFilling = useCallback(() => {
-    if (confirmed) return;
+    if (confirmed || fillInterval.current) return;
+    setIsFilling(true);
     fillInterval.current = setInterval(() => {
       setVolume(prev => {
         const next = prev + 2;
@@ -32,6 +33,7 @@ export default function S3_Measurement() {
   }, [confirmed, maxVal]);
 
   const stopFilling = useCallback(() => {
+    setIsFilling(false);
     if (fillInterval.current) {
       clearInterval(fillInterval.current);
       fillInterval.current = null;
@@ -98,6 +100,7 @@ export default function S3_Measurement() {
             height={450}
             currentVolume={volume}
             maxVolume={maxVal}
+            isFilling={isFilling}
           />
         </div>
 
