@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Stage, Layer, Rect, Text, Group, Circle } from 'react-konva';
 import GraduatedCylinder from './GraduatedCylinder';
 import Erlenmeyer from './Erlenmeyer';
@@ -33,6 +33,48 @@ export default function AssemblyBench({
   onAddDrop,
 }) {
   const [nearTarget, setNearTarget] = useState(false);
+  const [tiltProgress, setTiltProgress] = useState(0);
+  const tiltRef = useRef(0);
+  const tiltRafRef = useRef(null);
+
+  // Tilt-in animation: runs when isAnimating on a pour step.
+  // Ramps tiltProgress 0 → 1 in ~400 ms; resets instantly when animation ends.
+  useEffect(() => {
+    const shouldTilt = isAnimating && (currentStep === 2 || currentStep === 3);
+
+    if (!shouldTilt) {
+      if (tiltRafRef.current) cancelAnimationFrame(tiltRafRef.current);
+      tiltRef.current = 0;
+      setTiltProgress(0);
+      return;
+    }
+
+    tiltRef.current = 0;
+    let lastTs = null;
+    let running = true;
+
+    const frame = (ts) => {
+      if (!running) return;
+      const dt = lastTs !== null ? Math.min(ts - lastTs, 50) : 0;
+      lastTs = ts;
+      tiltRef.current = Math.min(1, tiltRef.current + dt / 400);
+      setTiltProgress(tiltRef.current);
+      if (tiltRef.current < 1) {
+        tiltRafRef.current = requestAnimationFrame(frame);
+      } else {
+        tiltRafRef.current = null;
+      }
+    };
+
+    if (tiltRafRef.current) cancelAnimationFrame(tiltRafRef.current);
+    tiltRafRef.current = requestAnimationFrame(frame);
+
+    return () => {
+      running = false;
+      if (tiltRafRef.current) cancelAnimationFrame(tiltRafRef.current);
+    };
+  }, [isAnimating, currentStep]);
+
   const benchY = height - 20;
 
   // Layout positions
@@ -75,9 +117,31 @@ export default function AssemblyBench({
   const cylCenterX = leftX;
   const cylCenterY = 190;
 
-  // Buffer beaker approximate center
-  const beakerCenterX = leftX;
-  const beakerCenterY = 205;
+  // Buffer cylinder (10 mL probeta) approximate center
+  const beakerCenterX = 105;
+  const beakerCenterY = 130;  // y(50) + tubeHeight(160)/2
+
+  // ── Tilt geometry ────────────────────────────────────────────────────────
+  // Cylinders slide toward the Erlenmeyer (body left edge = x 290) while rotating CW.
+  // spoutX = baseX + H·sin(θ),  spoutY = baseY - H·cos(θ)
+  // Translation is kept small so the cylinder body never crosses x=290.
+
+  const LARGE_TUBE_H = 280;
+  const largeBaseX   = leftX + tiltProgress * 15;             // 140 → 155
+  const largeBaseY   = 50 + LARGE_TUBE_H - tiltProgress * 8;  // 330 → 322
+  const largeTiltDeg = tiltProgress * 40;
+  const largeTiltRad = largeTiltDeg * Math.PI / 180;
+  const largeSpoutX  = largeBaseX + LARGE_TUBE_H * Math.sin(largeTiltRad);
+  const largeSpoutY  = largeBaseY - LARGE_TUBE_H * Math.cos(largeTiltRad);
+
+  // Small cylinder (step 3): slides 85 px right while rotating CW up to 55°.
+  const SMALL_TUBE_H = 160;
+  const SMALL_BASE_Y = 50 + SMALL_TUBE_H; // 210
+  const smallBaseX   = 105 + tiltProgress * 85;  // 105 → 190
+  const smallTiltDeg = tiltProgress * 55;
+  const smallTiltRad = smallTiltDeg * Math.PI / 180;
+  const smallSpoutX  = smallBaseX + SMALL_TUBE_H * Math.sin(smallTiltRad);
+  const smallSpoutY  = SMALL_BASE_Y  - SMALL_TUBE_H * Math.cos(smallTiltRad);
 
   return (
     <Stage width={width} height={height}>
@@ -109,9 +173,10 @@ export default function AssemblyBench({
               fontFamily="IBM Plex Sans" width={90} align="center"
             />
 
-            {/* GraduatedCylinder — draggable in step 2 */}
+            {/* GraduatedCylinder — draggable, hidden while pouring */}
             <Group
               x={0} y={0}
+              opacity={isAnimating ? 0 : 1}
               draggable={currentStep === 2 && !isAnimating}
               {...(currentStep === 2 && !isAnimating
                 ? makeDragHandlers(cylCenterX, cylCenterY, onPourWater)
@@ -129,20 +194,36 @@ export default function AssemblyBench({
               />
             </Group>
 
+            {/* Tilting cylinder — pivots at its base, visible only while animating */}
+            <Group
+              x={largeBaseX}
+              y={largeBaseY}
+              rotation={largeTiltDeg}
+              opacity={isAnimating ? 1 : 0}
+              listening={isAnimating}
+            >
+              <GraduatedCylinder
+                x={0} y={-LARGE_TUBE_H}
+                capacity={maxCylinderVolume}
+                currentVolume={cylinderVolume}
+                showGraduations={false}
+              />
+            </Group>
+
             {/* Hint text — always rendered to keep child indices stable */}
             <Text
               x={leftX + 40} y={benchY - 55}
-              text="Arrastra la probeta al Erlenmeyer \u2192"
+              text="Arrastra la probeta al Erlenmeyer →"
               fontSize={12} fill="#3B82F6"
               opacity={currentStep === 2 && !isAnimating ? 0.8 : 0}
               fontFamily="IBM Plex Sans" width={180}
             />
 
-            {/* Pour animation */}
+            {/* Pour stream from tilted spout — starts once tilt is past 60 % */}
             <PourAnimation
-              fromX={leftX - 10} fromY={50}
+              fromX={largeSpoutX} fromY={largeSpoutY}
               toX={rightX} toY={erlenmeyerY + 5}
-              isPouring={isAnimating && currentStep === 2}
+              isPouring={tiltProgress > 0.55 && isAnimating && currentStep === 2}
               color="#C0D0DA"
             />
           </>
@@ -169,48 +250,60 @@ export default function AssemblyBench({
               fontFamily="IBM Plex Sans" width={90} align="center"
             />
 
-            {/* Buffer beaker — draggable */}
+            {/* Buffer — probeta 10 mL, draggable, hidden while pouring */}
             <Group
               x={0} y={0}
+              opacity={isAnimating ? 0 : 1}
               draggable={!isAnimating}
               {...(!isAnimating
                 ? makeDragHandlers(beakerCenterX, beakerCenterY, onPourBuffer)
                 : {})}
             >
-              <Rect
-                x={leftX - 20} y={180}
-                width={40} height={50}
-                fill="#E8F4FD" stroke="#94A3B8" strokeWidth={1.5}
-                cornerRadius={[0, 0, 4, 4]}
-              />
-              {/* Buffer liquid inside beaker */}
-              <Rect
-                x={leftX - 18} y={195}
-                width={36} height={33}
-                fill="#F0F0F0" opacity={0.6}
-                cornerRadius={[0, 0, 3, 3]}
+              <GraduatedCylinder
+                x={105} y={50}
+                capacity={10}
+                currentVolume={Math.min(bufferBeakerVolume, 10)}
+                tubeWidth={20} tubeHeight={160} baseWidth={32}
               />
               <Text
-                x={leftX - 40} y={benchY - 25}
+                x={65} y={benchY - 25}
                 text="Tampón pH 10" fontSize={10} fill="#64748B"
                 fontFamily="IBM Plex Sans" width={80} align="center"
+              />
+            </Group>
+
+            {/* Tilting small cylinder — translates + pivots at base */}
+            <Group
+              x={smallBaseX}
+              y={SMALL_BASE_Y}
+              rotation={smallTiltDeg}
+              opacity={isAnimating ? 1 : 0}
+              listening={isAnimating}
+            >
+              <GraduatedCylinder
+                x={0} y={-SMALL_TUBE_H}
+                capacity={10}
+                currentVolume={Math.min(bufferBeakerVolume, 10)}
+                tubeWidth={20} tubeHeight={160} baseWidth={32}
+                showGraduations={false}
               />
             </Group>
 
             {/* Hint text — always rendered to keep child indices stable */}
             <Text
               x={leftX + 40} y={benchY - 55}
-              text="Arrastra el tampón al Erlenmeyer \u2192"
+              text="Arrastra la probeta al Erlenmeyer →"
               fontSize={12} fill="#3B82F6"
               opacity={!isAnimating ? 0.8 : 0}
               fontFamily="IBM Plex Sans" width={200}
             />
 
-            {/* Pour animation */}
+            {/* Pour stream from tilted spout — starts once tilt is past 60 % */}
             <PourAnimation
-              fromX={leftX} fromY={180}
+              fromX={smallSpoutX} fromY={smallSpoutY}
               toX={rightX} toY={erlenmeyerY + 5}
-              isPouring={isAnimating} color="#E0E0E0"
+              isPouring={tiltProgress > 0.55 && isAnimating}
+              color="#C0D0DA"
             />
           </>
         )}
@@ -252,7 +345,7 @@ export default function AssemblyBench({
                 react-konva reconciliation issues with child index shifts */}
             <Text
               x={width / 2 - 110} y={12}
-              text="Haz clic en el frasco para agregar gotas \u2193"
+              text="Haz clic en el frasco para agregar gotas ↓"
               fontSize={12} fill="#3B82F6" opacity={isAnimating ? 0 : 0.8}
               fontFamily="IBM Plex Sans" width={220} align="center"
             />

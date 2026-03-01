@@ -36,6 +36,13 @@ def validate_student_calculation(practice_id, recorded_volume, measured_value, s
         M_EDTA = 0.01
         PM_CaCO3 = 100.09
         correct = (recorded_volume * M_EDTA * PM_CaCO3 * 1000) / measured_value
+    elif practice_id == 4:
+        # Volhard back-titration: [(V_AgNO3 × M_AgNO3) - (V_KSCN × M_KSCN)] × PM_Cl / V_muestra
+        V_AgNO3 = 50.0
+        M_AgNO3 = 0.10
+        M_KSCN = 0.08
+        PM_Cl = 35.45
+        correct = ((V_AgNO3 * M_AgNO3) - (recorded_volume * M_KSCN)) * PM_Cl / measured_value
     else:
         correct = 0.0
 

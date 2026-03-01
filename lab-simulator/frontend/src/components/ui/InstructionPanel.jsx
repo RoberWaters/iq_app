@@ -29,7 +29,7 @@ export default function InstructionPanel({ title, steps, currentStep }) {
                 background: isCompleted ? 'var(--color-success)' : isActive ? 'var(--color-primary)' : 'var(--color-border)',
                 color: isCompleted || isActive ? '#fff' : 'var(--color-text-secondary)',
               }}>
-                {isCompleted ? '\u2713' : i + 1}
+                {isCompleted ? '✓' : i + 1}
               </div>
               <span style={{
                 fontSize: '0.85rem',

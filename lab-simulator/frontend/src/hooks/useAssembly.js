@@ -140,6 +140,22 @@ export default function useAssembly(measuredValue = 100, maxCapacity = 250) {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
   }, []);
 
+  const reset = useCallback(() => {
+    if (animTimeout.current) clearTimeout(animTimeout.current);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    animTimeout.current = null;
+    rafRef.current = null;
+    erlFillRef.current = 0;
+    setCurrentSubStep(1);
+    setIsAnimating(false);
+    setErlenmeyerFill(0);
+    setErlenmeyerColor('#F8F8FF');
+    setCylinderLevel(measuredValue);
+    setBufferAmount(10);
+    setDropCount(0);
+    setCompleted(false);
+  }, [measuredValue]);
+
   return {
     currentSubStep,
     isAnimating,
@@ -156,5 +172,6 @@ export default function useAssembly(measuredValue = 100, maxCapacity = 250) {
     addIndicatorDrop,
     finishAssembly,
     cleanup,
+    reset,
   };
 }

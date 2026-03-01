@@ -26,6 +26,18 @@ export function calculateExpectedVolume(titration, measuredValue, sampleId = nul
 }
 
 /**
+ * Calculate practice 4 result: mg Cl⁻/mL (Volhard back-titration)
+ * Formula: [(V_AgNO3 × M_AgNO3) - (V_KSCN × M_KSCN)] × PM_Cl / V_muestra
+ */
+export function calculatePractice4(vKSCN, vMuestra) {
+  const V_AgNO3 = 50.0;
+  const M_AgNO3 = 0.10;
+  const M_KSCN = 0.08;
+  const PM_Cl = 35.45;
+  return ((V_AgNO3 * M_AgNO3) - (vKSCN * M_KSCN)) * PM_Cl / vMuestra;
+}
+
+/**
  * Calculate practice 5 result: Dureza ppm CaCO3
  */
 export function calculatePractice5(vEdta, vMuestra) {

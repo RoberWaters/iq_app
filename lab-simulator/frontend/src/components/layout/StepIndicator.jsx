@@ -29,7 +29,7 @@ export default function StepIndicator() {
               color: isActive || isCompleted ? '#fff' : 'var(--color-text-secondary)',
               transition: 'all 0.3s',
             }}>
-              {isCompleted ? '\u2713' : stage.number}
+              {isCompleted ? '✓' : stage.number}
             </div>
             <span style={{
               fontSize: '0.7rem',
@@ -41,7 +41,7 @@ export default function StepIndicator() {
             }}>
               {stage.name}
             </span>
-            {stage.number < 8 && (
+            {stage.number < 9 && (
               <div style={{
                 width: '20px', height: '2px',
                 background: isCompleted ? 'var(--color-success)' : 'var(--color-border)',

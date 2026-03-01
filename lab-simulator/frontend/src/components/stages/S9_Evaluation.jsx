@@ -6,11 +6,10 @@ import ReportCard from '../ui/ReportCard';
 import Button from '../common/Button';
 import '../../styles/stages.css';
 
-export default function S8_Evaluation() {
+export default function S9_Evaluation() {
   const navigate = useNavigate();
   const { sessionId, report, setReport, reset } = useSimulatorStore();
   const [loading, setLoading] = useState(false);
-  const [curveVisible, setCurveVisible] = useState(true);
 
   useEffect(() => {
     if (sessionId && !report) {
@@ -40,7 +39,7 @@ export default function S8_Evaluation() {
   return (
     <div className="stage-container">
       <div className="stage-header">
-        <h2>Etapa 8: Evaluación</h2>
+        <h2>Etapa 9: Evaluación</h2>
         <p>Reporte de desempeño en la práctica</p>
       </div>
 
@@ -48,31 +47,6 @@ export default function S8_Evaluation() {
         {loading && <p>Generando reporte de evaluación...</p>}
 
         {report && <ReportCard report={report} />}
-
-        {report && curveVisible && (
-          <div style={{
-            marginTop: '32px',
-            padding: '20px 24px',
-            background: '#fff',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--color-border)',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-          }}>
-            <h3 style={{ marginBottom: '4px', fontSize: '1rem' }}>
-              Curva de titulación teórica
-            </h3>
-            <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginBottom: '16px' }}>
-              Curva calculada a partir de los equilibrios químicos de la práctica.
-              La línea punteada roja indica tu lectura registrada.
-            </p>
-            <img
-              src={`/api/sessions/${sessionId}/titration-curve`}
-              alt="Curva de titulación teórica"
-              onError={() => setCurveVisible(false)}
-              style={{ width: '100%', maxWidth: '760px', display: 'block', margin: '0 auto' }}
-            />
-          </div>
-        )}
 
         <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'center' }}>
           <Button onClick={handleRetry} variant="outline">

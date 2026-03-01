@@ -1,10 +1,36 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import useSimulatorStore from '../../store/useSimulatorStore';
 import * as api from '../../api/client';
+import { calculatePractice4, calculatePractice5 } from '../../utils/chemistryCalculations';
 import CalculationForm from '../ui/CalculationForm';
 import Button from '../common/Button';
 import '../../styles/stages.css';
+
+const formulaMap = {
+  4: calculatePractice4,
+  5: calculatePractice5,
+};
+
+function LatexFormula({ latex }) {
+  const html = katex.renderToString(latex, { throwOnError: false, displayMode: true });
+  return (
+    <div
+      style={{
+        padding: '16px',
+        background: '#F0F7FF',
+        borderRadius: 'var(--radius-md)',
+        textAlign: 'center',
+        marginBottom: '20px',
+        border: '1px solid #BFDBFE',
+        overflowX: 'auto',
+      }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
 
 export default function S7_Calculation() {
   const navigate = useNavigate();
@@ -24,11 +50,9 @@ export default function S7_Calculation() {
       setResult(resp);
       setCalculationResults(studentResult, resp.correct_result, resp.percent_error);
 
-      // Find interpretation
       if (calc?.interpretation?.ranges) {
-        const correctVal = resp.correct_result;
         const range = calc.interpretation.ranges.find(
-          (r) => correctVal >= r.min && correctVal < r.max
+          (r) => resp.correct_result >= r.min && resp.correct_result < r.max
         );
         setInterpretation(range || null);
       }
@@ -39,16 +63,15 @@ export default function S7_Calculation() {
 
   const handleAutoCalculate = () => {
     if (!calc || recordedVolume == null || measuredValue == null) return;
-    // Practice 5 formula
-    const mEdta = 0.01;
-    const pmCaCO3 = 100.09;
-    const autoResult = (recordedVolume * mEdta * pmCaCO3 * 1000) / measuredValue;
+    const autoCalc = formulaMap[practiceId];
+    if (!autoCalc) return;
+    const autoResult = autoCalc(recordedVolume, measuredValue);
     handleSubmit(Math.round(autoResult * 100) / 100);
   };
 
   const handleNext = () => {
     setCurrentStage(8);
-    navigate(`/practice/${practiceId}/stage/8`);
+    navigate(`/practice/${practiceId}/stage/8`);  // → S8 Análisis (curva)
   };
 
   if (!calc) return <div className="stage-container"><p>Configuración no disponible</p></div>;
@@ -63,32 +86,7 @@ export default function S7_Calculation() {
       <div className="calculation-layout">
         <div className="formula-panel">
           <h3 style={{ marginBottom: '16px' }}>Fórmula</h3>
-          <div style={{
-            padding: '16px',
-            background: '#F0F7FF',
-            borderRadius: 'var(--radius-md)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '0.95rem',
-            textAlign: 'center',
-            marginBottom: '20px',
-            lineHeight: 1.8,
-            border: '1px solid #BFDBFE',
-          }}>
-            {calc.formulaText}
-          </div>
-
-          <div style={{
-            padding: '12px',
-            background: 'var(--color-bg)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '0.85rem',
-          }}>
-            <div style={{ fontWeight: 500, marginBottom: '8px' }}>Datos experimentales:</div>
-            <div style={{ fontFamily: 'var(--font-mono)' }}>
-              <div>V_EDTA (tu lectura) = {recordedVolume?.toFixed(2)} mL</div>
-              <div>V_muestra = {measuredValue} mL</div>
-            </div>
-          </div>
+          <LatexFormula latex={calc.formulaLatex} />
         </div>
 
         <div className="result-panel">

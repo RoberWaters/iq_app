@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import Literal
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -15,6 +17,7 @@ from schemas.session import (
 )
 from services.titration_engine import get_expected_volume
 from services.report_generator import generate_report
+from services.titration_curve import generate_titration_curve
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -217,3 +220,24 @@ async def get_report(session_id: str, db: AsyncSession = Depends(get_db)):
 
     await db.flush()
     return report
+
+
+@router.get("/{session_id}/titration-curve")
+async def get_titration_curve(
+    session_id: str,
+    format: Literal['svg', 'png'] = Query('svg'),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(PracticeSession).where(PracticeSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    try:
+        data = generate_titration_curve(session.practice_id, _session_to_dict(session), fmt=format)
+        media_type = 'image/png' if format == 'png' else 'image/svg+xml'
+        return Response(content=data, media_type=media_type)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))

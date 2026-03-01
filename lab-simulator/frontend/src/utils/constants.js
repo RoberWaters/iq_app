@@ -6,7 +6,8 @@ export const STAGES = [
   { number: 5, name: 'Ejecución', description: 'Titulación' },
   { number: 6, name: 'Registro', description: 'Registro del resultado' },
   { number: 7, name: 'Cálculo', description: 'Cálculo y análisis' },
-  { number: 8, name: 'Evaluación', description: 'Evaluación y cierre' },
+  { number: 8, name: 'Análisis', description: 'Curva de titulación' },
+  { number: 9, name: 'Evaluación', description: 'Evaluación y cierre' },
 ];
 
 export const COLORS = {

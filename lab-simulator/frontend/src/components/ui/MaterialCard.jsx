@@ -6,7 +6,7 @@ const TYPE_ICONS = {
   dosificacion: '\u{1F9EA}',
   accesorio: '\u{1F527}',
   indicator: '\u{1F7E3}',
-  acid: '\u26A0',
+  acid: '⚠',
   base: '\u{1F7E6}',
   salt: '\u{1F7E1}',
   buffer: '\u{1F7E2}',
@@ -45,7 +45,7 @@ export default function MaterialCard({ id, name, type, category, selected, onCli
         {name}
       </span>
       {selected && (
-        <span style={{ marginLeft: 'auto', color: 'var(--color-primary)', fontWeight: 700 }}>{'\u2713'}</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--color-primary)', fontWeight: 700 }}>{'✓'}</span>
       )}
     </motion.div>
   );

@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import useSimulatorStore from '../../store/useSimulatorStore';
 import * as api from '../../api/client';
 import useAssembly from '../../hooks/useAssembly';
+import useSequentialAssembly from '../../hooks/useSequentialAssembly';
 import InstructionPanel from '../ui/InstructionPanel';
 import AssemblyBench from '../canvas/AssemblyBench';
+import SequentialAssemblyBench from '../canvas/SequentialAssemblyBench';
 import Button from '../common/Button';
 import '../../styles/stages.css';
 
@@ -19,21 +21,81 @@ export default function S4_Assembly() {
 
   const steps = practiceConfig?.assemblySteps || [];
   const assemblyConfig = practiceConfig?.assemblyConfig;
-  const maxCapacity = practiceConfig?.measurement?.range?.[1] || 250;
 
+  // Determine assembly mode: interactive (P5-style with buffer/indicator sliders)
+  // vs sequential (P4-style click-to-add steps)
+  const isInteractive = !!assemblyConfig?.buffer;
+
+  // Interactive assembly hook (only used for P5-style)
+  const maxCapacity = practiceConfig?.measurement?.range?.[1] || 250;
+  const interactiveAssembly = useAssembly(measuredValue || 100, maxCapacity);
+
+  // Sequential assembly hook (only used for P4-style)
+  const sequentialAssembly = useSequentialAssembly(steps);
+
+  if (isInteractive) {
+    return (
+      <InteractiveAssemblyView
+        steps={steps}
+        assemblyConfig={assemblyConfig}
+        assembly={interactiveAssembly}
+        measuredValue={measuredValue}
+        practiceId={practiceId}
+        sessionId={sessionId}
+        completedSteps={completedSteps}
+        completeStep={completeStep}
+        setAssemblyCorrect={setAssemblyCorrect}
+        setCurrentStage={setCurrentStage}
+        setBufferVolume={setBufferVolume}
+        setIndicatorDrops={setIndicatorDrops}
+        maxCapacity={maxCapacity}
+        navigate={navigate}
+      />
+    );
+  }
+
+  return (
+    <SequentialAssemblyView
+      steps={steps}
+      assembly={sequentialAssembly}
+      practiceId={practiceId}
+      sessionId={sessionId}
+      completedSteps={completedSteps}
+      completeStep={completeStep}
+      setAssemblyCorrect={setAssemblyCorrect}
+      setCurrentStage={setCurrentStage}
+      navigate={navigate}
+    />
+  );
+}
+
+// ─── Interactive Assembly (P5 style) ────────────────────────────────────────
+
+function InteractiveAssemblyView({
+  steps, assemblyConfig, assembly, measuredValue,
+  practiceId, sessionId, completedSteps, completeStep,
+  setAssemblyCorrect, setCurrentStage,
+  setBufferVolume, setIndicatorDrops, maxCapacity,
+  navigate,
+}) {
   const {
     currentSubStep, isAnimating,
     erlenmeyerFill, erlenmeyerColor,
     cylinderLevel, bufferAmount, setBufferAmount,
     dropCount, completed,
     confirmStep1, pourWater, pourBuffer,
-    addIndicatorDrop, finishAssembly, cleanup,
-  } = useAssembly(measuredValue || 100, maxCapacity);
+    addIndicatorDrop, finishAssembly, cleanup, reset,
+  } = assembly;
 
-  const [bufferSliderVal, setBufferSliderVal] = useState(
-    assemblyConfig?.buffer?.defaultVolume || 10
-  );
+  const defaultBuffer = assemblyConfig?.buffer?.defaultVolume || 10;
+  const [bufferSliderVal, setBufferSliderVal] = useState(defaultBuffer);
   const [showSummary, setShowSummary] = useState(false);
+
+  const handleReset = () => {
+    reset();
+    setBufferSliderVal(defaultBuffer);
+    setShowSummary(false);
+  };
 
   useEffect(() => {
     return cleanup;
@@ -52,21 +114,12 @@ export default function S4_Assembly() {
     }
   }, [currentSubStep, completedSteps, completeStep]);
 
-  // Canvas callback: pour water (step 2 drag)
-  const handlePourWater = () => {
-    pourWater();
-  };
-
-  // Canvas callback: pour buffer (step 3 drag)
+  const handlePourWater = () => pourWater();
   const handlePourBuffer = () => {
     setBufferAmount(bufferSliderVal);
     pourBuffer(bufferSliderVal);
   };
-
-  // Canvas callback: add indicator drop (step 4 click)
-  const handleAddDrop = () => {
-    addIndicatorDrop();
-  };
+  const handleAddDrop = () => addIndicatorDrop();
 
   const handleFinish = () => {
     if (!completedSteps.includes('agregar_indicador')) {
@@ -74,7 +127,6 @@ export default function S4_Assembly() {
     }
     finishAssembly();
     setShowSummary(true);
-
     setBufferVolume(bufferAmount);
     setIndicatorDrops(dropCount);
     setAssemblyCorrect(true);
@@ -122,6 +174,26 @@ export default function S4_Assembly() {
           />
 
           <div className="assembly-substep-controls">
+            {/* Reset button — available during all sub-steps */}
+            {!isAnimating && (
+              <div style={{ marginBottom: '12px', textAlign: 'right' }}>
+                <button
+                  onClick={handleReset}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '4px 12px',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-text-secondary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reiniciar montaje
+                </button>
+              </div>
+            )}
+
             {/* Sub-step 1: Confirm water measured */}
             {currentSubStep === 1 && (
               <div>
@@ -150,7 +222,7 @@ export default function S4_Assembly() {
                 }}>
                   {isAnimating
                     ? 'Vaciando...'
-                    : '\u{1F449} Arrastra la probeta hacia el Erlenmeyer en el canvas'}
+                    : 'Arrastra la probeta hacia el Erlenmeyer en el canvas'}
                 </div>
               </div>
             )}
@@ -211,7 +283,7 @@ export default function S4_Assembly() {
                 }}>
                   {isAnimating
                     ? 'Agregando tampón...'
-                    : '\u{1F449} Arrastra el vaso de tampón al Erlenmeyer'}
+                    : 'Arrastra la probeta de tampón al Erlenmeyer'}
                 </div>
               </div>
             )}
@@ -258,7 +330,7 @@ export default function S4_Assembly() {
                 }}>
                   {isAnimating
                     ? 'Agregando gota...'
-                    : '\u{1F449} Haz clic sobre el frasco de indicador en el canvas'}
+                    : 'Haz clic sobre el frasco de indicador en el canvas'}
                 </div>
 
                 <Button
@@ -333,6 +405,193 @@ export default function S4_Assembly() {
             onPourWater={handlePourWater}
             onPourBuffer={handlePourBuffer}
             onAddDrop={handleAddDrop}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sequential Assembly (P4 style) ────────────────────────────────────────
+
+function SequentialAssemblyView({
+  steps, assembly,
+  practiceId, sessionId, completedSteps, completeStep,
+  setAssemblyCorrect, setCurrentStage,
+  navigate,
+}) {
+  const {
+    currentStepIndex, currentStep, totalSteps,
+    isAnimating, completed, flaskState,
+    executeStep, cleanup, reset,
+  } = assembly;
+
+  const [showSummary, setShowSummary] = useState(false);
+
+  const handleReset = () => {
+    reset();
+    setShowSummary(false);
+  };
+
+  useEffect(() => {
+    return cleanup;
+  }, [cleanup]);
+
+  // Mark steps as completed in the global store
+  useEffect(() => {
+    for (let i = 0; i < currentStepIndex; i++) {
+      const stepId = steps[i]?.id;
+      if (stepId && !completedSteps.includes(stepId)) {
+        completeStep(stepId);
+      }
+    }
+  }, [currentStepIndex, steps, completedSteps, completeStep]);
+
+  // When all steps complete, mark assembly as done
+  useEffect(() => {
+    if (completed && !showSummary) {
+      // Mark final step complete
+      const lastStepId = steps[steps.length - 1]?.id;
+      if (lastStepId && !completedSteps.includes(lastStepId)) {
+        completeStep(lastStepId);
+      }
+      setAssemblyCorrect(true);
+      api.updateStage(sessionId, 4, { assembly_correct: true }).catch(console.error);
+      setShowSummary(true);
+    }
+  }, [completed, showSummary, steps, completedSteps, completeStep, setAssemblyCorrect, sessionId]);
+
+  const handleNext = () => {
+    setCurrentStage(5);
+    navigate(`/practice/${practiceId}/stage/5`);
+  };
+
+  const handleExecuteStep = () => {
+    executeStep();
+  };
+
+  // Button label based on current step action
+  const getActionLabel = () => {
+    if (!currentStep) return 'Ejecutar paso';
+    const action = currentStep.action;
+    switch (action) {
+      case 'measure_and_transfer': return 'Pipetear y transferir';
+      case 'add_reagent': return `Agregar ${currentStep.reagent ? '' : 'reactivo'}`;
+      case 'cover': return 'Tapar con aluminio';
+      case 'add_indicator': return 'Agregar indicador';
+      case 'transfer': return 'Transferir';
+      default: return 'Ejecutar paso';
+    }
+  };
+
+  return (
+    <div className="stage-container">
+      <div className="stage-header">
+        <h2>Etapa 4: Montaje del Experimento</h2>
+        <p>Realiza los pasos de montaje en el orden indicado</p>
+      </div>
+
+      <div className="assembly-layout">
+        {/* Left: Instructions + Controls */}
+        <div>
+          <InstructionPanel
+            title="Pasos de montaje"
+            steps={steps}
+            currentStep={currentStepIndex}
+          />
+
+          <div className="assembly-substep-controls">
+            {/* Reset button — available during all steps */}
+            {!isAnimating && (
+              <div style={{ marginBottom: '12px', textAlign: 'right' }}>
+                <button
+                  onClick={handleReset}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '4px 12px',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-text-secondary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reiniciar montaje
+                </button>
+              </div>
+            )}
+
+            {!showSummary && currentStep && (
+              <div>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+                  <strong>Paso {currentStepIndex + 1} de {totalSteps}:</strong>
+                </p>
+                <p style={{ fontSize: '0.9rem', marginBottom: '12px' }}>
+                  {currentStep.description}
+                </p>
+
+                {/* Critical note */}
+                {currentStep.criticalNote && (
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#FEF3C7',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.8rem',
+                    color: '#92400E',
+                    border: '1px solid #FDE68A',
+                    marginBottom: '12px',
+                  }}>
+                    {currentStep.criticalNote}
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleExecuteStep}
+                  disabled={isAnimating}
+                  style={{ width: '100%' }}
+                >
+                  {isAnimating ? 'Ejecutando...' : getActionLabel()}
+                </Button>
+              </div>
+            )}
+
+            {/* Summary after all steps */}
+            {showSummary && (
+              <div>
+                <div style={{
+                  padding: '12px 16px',
+                  background: '#F0FDF4',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid #BBF7D0',
+                  marginBottom: '12px',
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: '8px', color: '#166534' }}>
+                    Montaje completo
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#15803D', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {steps.map((step, i) => (
+                      <span key={i}>{step.description}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <Button onClick={handleNext} variant="success" style={{ width: '100%' }}>
+                  Continuar a la titulación
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Sequential Canvas */}
+        <div className="titration-canvas-wrapper">
+          <SequentialAssemblyBench
+            width={500}
+            height={480}
+            flaskState={flaskState}
+            isAnimating={isAnimating}
+            currentStepIndex={currentStepIndex}
+            currentAction={currentStep?.action || ''}
           />
         </div>
       </div>

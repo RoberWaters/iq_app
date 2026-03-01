@@ -10,8 +10,9 @@ export default function S3_Measurement() {
   const navigate = useNavigate();
   const { practiceConfig, practiceId, sessionId, setMeasurement, setCurrentStage } = useSimulatorStore();
   const measurement = practiceConfig?.measurement;
+  const isFixed = measurement?.fixedValue === true;
 
-  const [volume, setVolume] = useState(0);
+  const [volume, setVolume] = useState(isFixed ? (measurement?.defaultValue || 10) : 0);
   const [confirmed, setConfirmed] = useState(false);
   const [isFilling, setIsFilling] = useState(false);
 
@@ -20,9 +21,9 @@ export default function S3_Measurement() {
   const minVal = measurement?.range?.[0] || 10;
   const maxVal = measurement?.range?.[1] || 250;
 
-  // Hold-to-fill logic
+  // Hold-to-fill logic (only for interactive mode)
   const startFilling = useCallback(() => {
-    if (confirmed || fillInterval.current) return;
+    if (confirmed || fillInterval.current || isFixed) return;
     setIsFilling(true);
     fillInterval.current = setInterval(() => {
       setVolume(prev => {
@@ -30,7 +31,7 @@ export default function S3_Measurement() {
         return next > maxVal ? maxVal : Math.round(next * 10) / 10;
       });
     }, 100);
-  }, [confirmed, maxVal]);
+  }, [confirmed, maxVal, isFixed]);
 
   const stopFilling = useCallback(() => {
     setIsFilling(false);
@@ -42,6 +43,7 @@ export default function S3_Measurement() {
 
   // Safety net: always stop filling on any pointer/mouse release globally
   useEffect(() => {
+    if (isFixed) return;
     const handleGlobalUp = () => stopFilling();
     window.addEventListener('pointerup', handleGlobalUp);
     window.addEventListener('mouseup', handleGlobalUp);
@@ -52,10 +54,10 @@ export default function S3_Measurement() {
       window.removeEventListener('mouseup', handleGlobalUp);
       window.removeEventListener('touchend', handleGlobalUp);
     };
-  }, [stopFilling]);
+  }, [stopFilling, isFixed]);
 
   const adjustVolume = (delta) => {
-    if (confirmed) return;
+    if (confirmed || isFixed) return;
     setVolume(prev => {
       const next = Math.round((prev + delta) * 10) / 10;
       return Math.max(0, Math.min(maxVal, next));
@@ -63,12 +65,12 @@ export default function S3_Measurement() {
   };
 
   const handleReset = () => {
-    if (confirmed) return;
+    if (confirmed || isFixed) return;
     setVolume(0);
   };
 
   const handleConfirm = async () => {
-    if (volume < minVal) return;
+    if (!isFixed && volume < minVal) return;
     try {
       await api.updateMeasurement(sessionId, volume, measurement?.unit || 'mL');
       setMeasurement(volume, measurement?.unit || 'mL');
@@ -85,6 +87,93 @@ export default function S3_Measurement() {
 
   if (!measurement) return <div className="stage-container"><p>Configuración no disponible</p></div>;
 
+  // Fixed measurement mode — simple confirmation view
+  if (isFixed) {
+    return (
+      <div className="stage-container">
+        <div className="stage-header">
+          <h2>Etapa 3: Medición de Muestra</h2>
+          <p>{measurement.instruction}</p>
+        </div>
+
+        <div className="measurement-fixed-layout" style={{
+          maxWidth: '500px',
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          padding: '24px',
+        }}>
+          {/* Instrument icon area */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '32px',
+            background: '#F0F7FF',
+            borderRadius: 'var(--radius-lg, 12px)',
+            border: '1px solid #BFDBFE',
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '2rem',
+                fontWeight: 700,
+                color: 'var(--color-primary)',
+              }}>
+                {measurement.defaultValue} {measurement.unit}
+              </div>
+              <div style={{
+                fontSize: '0.9rem',
+                color: 'var(--color-text-secondary)',
+                marginTop: '4px',
+              }}>
+                {measurement.label}
+              </div>
+            </div>
+          </div>
+
+          {/* Info box */}
+          <div style={{
+            padding: '12px 16px',
+            background: '#EFF6FF',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '0.85rem',
+            color: '#1D4ED8',
+            border: '1px solid #BFDBFE',
+          }}>
+            Medición fija: la pipeta volumétrica entrega exactamente {measurement.defaultValue} {measurement.unit}
+          </div>
+
+          {/* Confirm / Continue */}
+          {confirmed ? (
+            <>
+              <div style={{
+                padding: '10px 14px',
+                background: '#F0FDF4',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--color-success)',
+                fontWeight: 500,
+                fontSize: '0.9rem',
+                textAlign: 'center',
+              }}>
+                Medición registrada: {volume.toFixed(1)} {measurement.unit}
+              </div>
+              <Button onClick={handleNext} variant="success" style={{ width: '100%' }}>
+                Continuar al montaje
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleConfirm} style={{ width: '100%' }}>
+              Confirmar medición
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Interactive measurement mode (P5 and similar)
   return (
     <div className="stage-container">
       <div className="stage-header">

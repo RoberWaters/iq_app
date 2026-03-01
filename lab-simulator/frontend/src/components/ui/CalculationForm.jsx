@@ -1,5 +1,17 @@
 import { useState } from 'react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import Button from '../common/Button';
+
+// Convert plain symbol like "V_EDTA" → LaTeX "V_{EDTA}" for inline rendering
+function symToLatex(symbol) {
+  return symbol.replace(/_([A-Za-z0-9]+)/g, '_{$1}');
+}
+
+function InlineLatex({ symbol }) {
+  const html = katex.renderToString(symToLatex(symbol), { throwOnError: false, displayMode: false });
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
 
 export default function CalculationForm({ variables, onSubmit, onAutoCalculate, result }) {
   const [values, setValues] = useState({});
@@ -9,12 +21,16 @@ export default function CalculationForm({ variables, onSubmit, onAutoCalculate, 
     setValues((prev) => ({ ...prev, [symbol]: val }));
   };
 
+  // Non-constant variables must all be filled to enable the action buttons
+  const requiredVars = (variables || []).filter((v) => v.source !== 'constant');
+  const requiredFilled = requiredVars.every((v) => values[v.symbol]?.trim() !== '' && values[v.symbol] != null);
+
   return (
     <div>
       <h3 style={{ fontSize: '1.1rem', marginBottom: '16px' }}>Variables de la fórmula</h3>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-        {variables.map((v) => (
+        {(variables || []).map((v) => (
           <div key={v.symbol} style={{
             display: 'flex', alignItems: 'center', gap: '12px',
             padding: '10px 14px',
@@ -24,8 +40,8 @@ export default function CalculationForm({ variables, onSubmit, onAutoCalculate, 
           }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{v.name}</div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.9rem' }}>
-                {v.symbol}
+              <div style={{ fontSize: '0.95rem', lineHeight: 1 }}>
+                <InlineLatex symbol={v.symbol} />
               </div>
             </div>
             {v.source === 'constant' ? (
@@ -33,20 +49,24 @@ export default function CalculationForm({ variables, onSubmit, onAutoCalculate, 
                 {v.value} {v.unit}
               </div>
             ) : (
-              <input
-                type="number"
-                step="any"
-                value={values[v.symbol] || ''}
-                onChange={(e) => handleChange(v.symbol, e.target.value)}
-                placeholder={v.description || v.unit}
-                style={{
-                  width: '120px', padding: '6px 10px',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.9rem',
-                }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="number"
+                  step="any"
+                  value={values[v.symbol] ?? ''}
+                  onChange={(e) => handleChange(v.symbol, e.target.value)}
+                  placeholder={v.unit}
+                  style={{
+                    width: '100px', padding: '6px 10px',
+                    border: `1px solid ${values[v.symbol]?.trim() ? 'var(--color-success)' : 'var(--color-border)'}`,
+                    borderRadius: 'var(--radius-sm)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                  }}
+                />
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{v.unit}</span>
+              </div>
             )}
           </div>
         ))}
@@ -79,15 +99,25 @@ export default function CalculationForm({ variables, onSubmit, onAutoCalculate, 
         />
       </div>
 
+      {!requiredFilled && (
+        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
+          Ingresa todos los valores de las variables para continuar.
+        </p>
+      )}
+
       <div style={{ display: 'flex', gap: '10px' }}>
         <Button
           onClick={() => onSubmit(parseFloat(studentResult))}
-          disabled={!studentResult}
+          disabled={!requiredFilled || !studentResult}
           style={{ flex: 1 }}
         >
           Verificar cálculo
         </Button>
-        <Button onClick={onAutoCalculate} variant="outline">
+        <Button
+          onClick={onAutoCalculate}
+          disabled={!requiredFilled}
+          variant="outline"
+        >
           Calcular automáticamente
         </Button>
       </div>

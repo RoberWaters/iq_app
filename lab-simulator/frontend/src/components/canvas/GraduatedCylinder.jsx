@@ -3,10 +3,11 @@ import { Group, Rect, Line, Text, Circle } from 'react-konva';
 export default function GraduatedCylinder({
   x, y, capacity = 250, currentVolume = 0,
   liquidColor, isFlowing = false, animTime = 0,
+  tubeWidth = 40,
+  tubeHeight = 280,
+  baseWidth = 60,
+  showGraduations = true,
 }) {
-  const tubeWidth = 40;
-  const tubeHeight = 280;
-  const baseWidth = 60;
   const baseHeight = 10;
   const fillFraction = Math.min(1, Math.max(0, currentVolume / capacity));
   const liquidHeight = fillFraction * tubeHeight;
@@ -61,9 +62,9 @@ export default function GraduatedCylinder({
 
   // Graduation marks (bottom-up: 0 at bottom, capacity at top)
   const graduations = [];
-  const majorStep = capacity <= 100 ? 10 : 50;
-  const minorStep = capacity <= 100 ? 5 : 10;
-  const tickStep = capacity <= 100 ? 1 : 5;
+  const majorStep = capacity <= 10 ? 2 : capacity <= 100 ? 10 : 50;
+  const minorStep = capacity <= 10 ? 1 : capacity <= 100 ? 5 : 10;
+  const tickStep = capacity <= 10 ? 1 : capacity <= 100 ? 1 : 5;
 
   for (let v = 0; v <= capacity; v += tickStep) {
     const yPos = y + tubeHeight - (v / capacity) * tubeHeight;
@@ -156,7 +157,7 @@ export default function GraduatedCylinder({
       ))}
 
       {/* Graduations */}
-      {graduations}
+      {showGraduations && graduations}
 
       {/* Base */}
       <Rect

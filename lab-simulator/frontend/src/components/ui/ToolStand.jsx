@@ -26,7 +26,7 @@ function StandItem({ item, selected, onAdd }) {
         <LabIcon name={iconName} size={22} />
       </span>
       <span className="stand-item-name">{item.name}</span>
-      {selected && <span className="stand-item-check">{'\u2713'}</span>}
+      {selected && <span className="stand-item-check">{'✓'}</span>}
     </motion.div>
   );
 }

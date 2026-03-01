@@ -13,9 +13,9 @@ export const PRACTICES = [
   },
   {
     id: 4, number: 4, name: "Método de Volhard",
-    fullName: "Determinación de Plata por el Método de Volhard",
-    description: "Determinación de plata mediante retrotitulación por el método de Volhard.",
-    category: "Precipitación", difficulty: "media", implemented: false, comingSoon: true,
+    fullName: "Determinación de Cloruros en Solución Salina. Método de Volhard",
+    description: "Determinación de cloruros en solución salina mediante retrotitulación con KSCN 0.08 M, usando alumbre férrico como indicador.",
+    category: "Precipitación", difficulty: "media", implemented: true, comingSoon: false,
   },
   {
     id: 5, number: 5, name: "Dureza en Agua",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useSimulatorStore from '../../store/useSimulatorStore';
 import useTitrationStore from '../../store/useTitrationStore';
@@ -20,37 +20,38 @@ export default function S5_Execution() {
   const { initTitration, volumeAdded } = useTitrationStore();
   const [showConfirm, setShowConfirm] = useState(false);
 
-  useEffect(() => {
-    if (practiceConfig?.titration) {
-      const titration = practiceConfig.titration;
-      const assemblyConfig = practiceConfig.assemblyConfig;
+  const startTitration = useCallback(() => {
+    if (!practiceConfig?.titration) return;
+    const titration = practiceConfig.titration;
+    const assemblyConfig = practiceConfig.assemblyConfig;
 
-      // Calculate expected volume based on proportionality
-      const refVol = titration.expectedVolume;
-      const refValue = titration.referenceValue || 100;
-      const measured = measuredValue || refValue;
-      let expectedVol = refVol;
-      if (titration.proportionality === 'direct') {
-        expectedVol = (refVol / refValue) * measured;
-      } else if (titration.proportionality === 'inverse') {
-        expectedVol = (refVol * refValue) / measured;
-      }
-
-      // Determine modifiers from assembly choices
-      const modifiers = {};
-      if (assemblyConfig?.buffer?.qualityThresholds && bufferVolume != null) {
-        const thresholds = assemblyConfig.buffer.qualityThresholds;
-        if (bufferVolume < thresholds.poor) modifiers.bufferQuality = 'poor';
-        else if (bufferVolume > thresholds.excess) modifiers.bufferQuality = 'excess';
-        else modifiers.bufferQuality = 'good';
-      }
-      if (indicatorDrops != null) {
-        modifiers.indicatorDrops = indicatorDrops;
-      }
-
-      initTitration(titration, expectedVol, modifiers);
+    const refVol = titration.expectedVolume;
+    const refValue = titration.referenceValue || 100;
+    const measured = measuredValue || refValue;
+    let expectedVol = refVol;
+    if (titration.proportionality === 'direct') {
+      expectedVol = (refVol / refValue) * measured;
+    } else if (titration.proportionality === 'inverse') {
+      expectedVol = (refVol * refValue) / measured;
     }
-  }, [practiceConfig, initTitration, measuredValue, bufferVolume, indicatorDrops]);
+
+    const modifiers = {};
+    if (assemblyConfig?.buffer?.qualityThresholds && bufferVolume != null) {
+      const thresholds = assemblyConfig.buffer.qualityThresholds;
+      if (bufferVolume < thresholds.poor) modifiers.bufferQuality = 'poor';
+      else if (bufferVolume > thresholds.excess) modifiers.bufferQuality = 'excess';
+      else modifiers.bufferQuality = 'good';
+    }
+    if (indicatorDrops != null) {
+      modifiers.indicatorDrops = indicatorDrops;
+    }
+
+    initTitration(titration, expectedVol, modifiers);
+  }, [practiceConfig, measuredValue, bufferVolume, indicatorDrops, initTitration]);
+
+  useEffect(() => {
+    startTitration();
+  }, [startTitration]);
 
   const handleRecord = () => {
     setShowConfirm(true);
@@ -87,6 +88,22 @@ export default function S5_Execution() {
         <div className="titration-controls-panel">
           <BuretteReadout />
           <TitrationControls onRecord={handleRecord} />
+          <div style={{ marginTop: '16px', textAlign: 'right' }}>
+            <button
+              onClick={startTitration}
+              style={{
+                background: 'none',
+                border: '1px solid #CBD5E1',
+                borderRadius: 'var(--radius-md)',
+                padding: '4px 12px',
+                fontSize: '0.8rem',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              Reiniciar titulación
+            </button>
+          </div>
         </div>
       </div>
 

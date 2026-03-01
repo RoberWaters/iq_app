@@ -1,4 +1,18 @@
 export const COLOR_MAPS = {
+  4: [
+    { progress: 0.00, color: "#FFF8E0", description: "Beige pálido — inicio" },
+    { progress: 0.10, color: "#FFF6D8", description: "Beige claro" },
+    { progress: 0.25, color: "#FFF4D0", description: "Beige" },
+    { progress: 0.40, color: "#FFF2C8", description: "Beige cálido" },
+    { progress: 0.55, color: "#FFF0C0", description: "Beige amarillento" },
+    { progress: 0.70, color: "#FFEEB8", description: "Amarillo pálido" },
+    { progress: 0.85, color: "#FFECB0", description: "Amarillo crema" },
+    { progress: 0.93, color: "#FFE8D0", description: "Crema rosáceo" },
+    { progress: 0.97, color: "#FFE0D0", description: "Rosa muy pálido" },
+    { progress: 1.00, color: "#FFD8C8", description: "Rosa salmón tenue — PUNTO FINAL" },
+    { progress: 1.05, color: "#FFC8B8", description: "Rosa salmón (exceso)" },
+    { progress: 1.15, color: "#FFB0A0", description: "Rosa rojizo (exceso marcado)" },
+  ],
   5: [
     { progress: 0.00, color: "#CD5C5C", description: "Rojizo/vino — inicio" },
     { progress: 0.20, color: "#C46070", description: "Rojizo con tinte" },
