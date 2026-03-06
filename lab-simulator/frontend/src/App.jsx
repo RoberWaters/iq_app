@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/layout/Header';
 import StepIndicator from './components/layout/StepIndicator';
@@ -11,18 +11,23 @@ import S6_Recording from './components/stages/S6_Recording';
 import S7_Calculation from './components/stages/S7_Calculation';
 import S8_TitrationCurve from './components/stages/S8_TitrationCurve';
 import S9_Evaluation from './components/stages/S9_Evaluation';
+import TeacherDashboard from './components/teacher/TeacherDashboard';
+import SectionDetail from './components/teacher/SectionDetail';
 import useSimulatorStore from './store/useSimulatorStore';
 
 function App() {
   const { practiceId } = useSimulatorStore();
+  const location = useLocation();
+  const isTeacherRoute = location.pathname.startsWith('/teacher');
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Header />
-      {practiceId && <StepIndicator />}
+      {!isTeacherRoute && <Header />}
+      {!isTeacherRoute && practiceId && <StepIndicator />}
       <main style={{ flex: 1, overflow: 'auto' }}>
         <AnimatePresence mode="wait">
           <Routes>
+            {/* Simulator (student) */}
             <Route path="/" element={<S1_PracticeSelect />} />
             <Route path="/practice/:id/stage/2" element={<S2_MaterialSetup />} />
             <Route path="/practice/:id/stage/3" element={<S3_Measurement />} />
@@ -32,6 +37,10 @@ function App() {
             <Route path="/practice/:id/stage/7" element={<S7_Calculation />} />
             <Route path="/practice/:id/stage/8" element={<S8_TitrationCurve />} />
             <Route path="/practice/:id/stage/9" element={<S9_Evaluation />} />
+
+            {/* Teacher dashboard */}
+            <Route path="/teacher" element={<TeacherDashboard />} />
+            <Route path="/teacher/section/:sectionId" element={<SectionDetail />} />
           </Routes>
         </AnimatePresence>
       </main>
