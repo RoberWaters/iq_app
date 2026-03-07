@@ -1,0 +1,360 @@
+/* ── Teacher views ─────────────────────────────────────────────────────────── */
+
+.teacher-page {
+  display: flex;
+  justify-content: center;
+  padding: 40px 24px;
+  min-height: 100%;
+}
+
+/* ── Card container ───────────────────────────────────────────────────────── */
+
+.teacher-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  width: 100%;
+  max-width: 880px;
+  overflow: hidden;
+}
+
+.teacher-card--wide {
+  max-width: 1020px;
+}
+
+.teacher-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.teacher-card__title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.teacher-card__icon {
+  font-size: 1.4rem;
+  color: var(--color-primary);
+}
+
+.teacher-card__body {
+  padding: 24px 28px 28px;
+}
+
+.teacher-card__welcome-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.teacher-card__welcome {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* ── Section close button ─────────────────────────────────────────────────── */
+
+.section-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: var(--color-text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.section-close:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+}
+
+/* ── Search box ───────────────────────────────────────────────────────────── */
+
+.search-box {
+  position: relative;
+}
+
+.search-box__input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 36px 8px 14px;
+  font-size: 0.9rem;
+  width: 220px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-box__input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.search-box__input--compact {
+  width: 180px;
+  padding: 6px 12px;
+}
+
+.search-box__icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabs__btn {
+  padding: 12px 20px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  margin-bottom: -1px;
+}
+
+.tabs__btn:hover {
+  color: var(--color-text);
+}
+
+.tabs__btn--active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* ── Tab content ──────────────────────────────────────────────────────────── */
+
+.tab-content {
+  padding: 20px 28px 28px;
+}
+
+/* ── Toolbar (students tab) ───────────────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Filter chips ─────────────────────────────────────────────────────────── */
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  transition: all 0.15s;
+}
+
+.filter-chip:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.filter-chip--active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.filter-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.filter-dot--pending {
+  background: var(--color-warning);
+}
+
+.filter-dot--completed {
+  background: var(--color-success);
+}
+
+/* ── Table ─────────────────────────────────────────────────────────────────── */
+
+.t-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.t-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.t-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border-light);
+  vertical-align: middle;
+}
+
+.t-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.t-table__bold {
+  font-weight: 600;
+}
+
+.t-table__date {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+/* ── Badges ────────────────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge--success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge--warning {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.badge--danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn--sm {
+  padding: 6px 16px;
+  font-size: 0.85rem;
+}
+
+.btn--primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-dark);
+}
+
+.btn--outline-primary {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-primary);
+}
+
+.btn--outline-primary:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.btn--warning {
+  background: var(--color-warning);
+  color: #fff;
+}
+
+.btn--warning:hover {
+  background: #d97706;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .teacher-page {
+    padding: 16px 8px;
+  }
+
+  .teacher-card__body,
+  .tab-content {
+    padding: 16px;
+  }
+
+  .tabs {
+    padding: 0 16px;
+  }
+
+  .teacher-card__header {
+    padding: 16px;
+  }
+
+  .search-box__input {
+    width: 160px;
+  }
+
+  .t-table {
+    font-size: 0.82rem;
+  }
+
+  .t-table th,
+  .t-table td {
+    padding: 10px 8px;
+  }
+}
