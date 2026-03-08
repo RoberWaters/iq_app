@@ -1,31 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { getSections } from '../../api/client';
 import '../../styles/teacher.css';
-
-const MOCK_SECTIONS = [
-  {
-    id: '10-B',
-    students: 24,
-    nextPractice: 'Titulación Ácido-Base',
-    nextDate: '25/04',
-    status: 'programada',
-  },
-  {
-    id: '12-A',
-    students: 18,
-    nextPractice: 'Destilación Simple',
-    nextDate: '26/04',
-    status: 'bloqueada',
-  },
-  {
-    id: '11-C',
-    students: 22,
-    nextPractice: 'Electroquímica',
-    nextDate: '27/04/2024',
-    status: 'habilitada',
-  },
-];
 
 const STATUS_CONFIG = {
   programada: { label: 'Programada', className: 'badge--warning' },
@@ -36,10 +13,20 @@ const STATUS_CONFIG = {
 export default function TeacherDashboard() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [sections, setSections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filtered = MOCK_SECTIONS.filter((s) =>
-    s.id.toLowerCase().includes(search.toLowerCase()) ||
-    s.nextPractice.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    getSections()
+      .then(setSections)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = sections.filter((s) =>
+    s.code.toLowerCase().includes(search.toLowerCase()) ||
+    (s.next_practice ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -54,7 +41,7 @@ export default function TeacherDashboard() {
           <div>
             <h1 className="teacher-card__title">
               <span className="teacher-card__icon">&#9879;</span>
-              Simulatoral de Química
+              Simulador de Química
             </h1>
           </div>
           <button
@@ -80,50 +67,64 @@ export default function TeacherDashboard() {
             </div>
           </div>
 
-          <table className="t-table">
-            <thead>
-              <tr>
-                <th>Sección</th>
-                <th># Estudiantes</th>
-                <th>Próxima Práctica</th>
-                <th>Estado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((section) => {
-                const cfg = STATUS_CONFIG[section.status];
-                return (
-                  <tr key={section.id}>
-                    <td className="t-table__bold">{section.id}</td>
-                    <td>{section.students}</td>
-                    <td>
-                      {section.nextPractice}
-                      <span className="t-table__date">{section.nextDate}</span>
-                    </td>
-                    <td>
-                      <span className={`badge ${cfg.className}`}>{cfg.label}</span>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn--primary btn--sm"
-                        onClick={() => navigate(`/teacher/section/${section.id}`)}
-                      >
-                        Entrar
-                      </button>
+          {error && (
+            <p style={{ color: 'var(--color-danger)', textAlign: 'center', padding: '12px' }}>
+              Error al cargar secciones: {error}
+            </p>
+          )}
+
+          {loading ? (
+            <p style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}>
+              Cargando secciones…
+            </p>
+          ) : (
+            <table className="t-table">
+              <thead>
+                <tr>
+                  <th>Sección</th>
+                  <th># Estudiantes</th>
+                  <th>Próxima Práctica</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((section) => {
+                  const cfg = STATUS_CONFIG[section.status] ?? STATUS_CONFIG.bloqueada;
+                  return (
+                    <tr key={section.id}>
+                      <td className="t-table__bold">{section.code}</td>
+                      <td>{section.student_count}</td>
+                      <td>
+                        {section.next_practice ?? '—'}
+                        {section.next_date && (
+                          <span className="t-table__date">{section.next_date}</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`badge ${cfg.className}`}>{cfg.label}</span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn--primary btn--sm"
+                          onClick={() => navigate(`/teacher/section/${section.code}`)}
+                        >
+                          Entrar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && !loading && (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}>
+                      No se encontraron secciones
                     </td>
                   </tr>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}>
-                    No se encontraron secciones
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </motion.div>
