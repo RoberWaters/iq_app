@@ -38,6 +38,7 @@ _router_modules = [
     ("routers.practices", "router", "/api"),
     ("routers.sessions", "router", "/api"),
     ("routers.calculations", "router", "/api"),
+    ("routers.teacher", "router", "/api"),
 ]
 
 for module_path, attr_name, prefix in _router_modules:
