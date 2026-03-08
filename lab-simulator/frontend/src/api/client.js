@@ -14,6 +14,7 @@ async function request(path, options = {}) {
     throw new Error(error.detail || `Error ${response.status}`);
   }
 
+  if (response.status === 204) return null;
   return response.json();
 }
 
@@ -67,3 +68,17 @@ export const getExpectedVolume = (practiceId, measuredValue, sampleId = null) =>
 
 // Reports
 export const getReport = (sessionId) => request(`/sessions/${sessionId}/report`);
+
+// Teacher – Sections
+export const getSections = () => request('/teacher/sections');
+
+export const createSection = (data) =>
+  request('/teacher/sections', { method: 'POST', body: JSON.stringify(data) });
+
+export const getSection = (id) => request(`/teacher/sections/${id}`);
+
+export const updateSection = (id, data) =>
+  request(`/teacher/sections/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteSection = (id) =>
+  request(`/teacher/sections/${id}`, { method: 'DELETE' });
