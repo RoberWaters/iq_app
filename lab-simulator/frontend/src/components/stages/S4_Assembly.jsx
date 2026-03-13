@@ -7,6 +7,7 @@ import useSequentialAssembly from '../../hooks/useSequentialAssembly';
 import InstructionPanel from '../ui/InstructionPanel';
 import AssemblyBench from '../canvas/AssemblyBench';
 import SequentialAssemblyBench from '../canvas/SequentialAssemblyBench';
+import RefluxBench from '../canvas/RefluxBench';
 import Button from '../common/Button';
 import '../../styles/stages.css';
 
@@ -21,9 +22,10 @@ export default function S4_Assembly() {
 
   const steps = practiceConfig?.assemblySteps || [];
   const assemblyConfig = practiceConfig?.assemblyConfig;
+  const assemblyMode = practiceConfig?.assemblyMode || null;
 
   // Determine assembly mode: interactive (P5-style with buffer/indicator sliders)
-  // vs sequential (P4-style click-to-add steps)
+  // vs sequential (P4-style click-to-add steps, also used for reflux P2-style)
   const isInteractive = !!assemblyConfig?.buffer;
 
   // Interactive assembly hook (only used for P5-style)
@@ -31,7 +33,8 @@ export default function S4_Assembly() {
   const interactiveAssembly = useAssembly(measuredValue || 100, maxCapacity);
 
   // Sequential assembly hook (only used for P4-style)
-  const sequentialAssembly = useSequentialAssembly(steps);
+  const initialFlaskState = practiceConfig?.initialFlaskState || null;
+  const sequentialAssembly = useSequentialAssembly(steps, initialFlaskState);
 
   if (isInteractive) {
     return (
@@ -58,6 +61,7 @@ export default function S4_Assembly() {
     <SequentialAssemblyView
       steps={steps}
       assembly={sequentialAssembly}
+      assemblyMode={assemblyMode}
       practiceId={practiceId}
       sessionId={sessionId}
       completedSteps={completedSteps}
@@ -412,10 +416,38 @@ function InteractiveAssemblyView({
   );
 }
 
-// ─── Sequential Assembly (P4 style) ────────────────────────────────────────
+// ─── Sequential Assembly (P4/P2 style) ──────────────────────────────────────
+
+const ACTION_LABELS = {
+  cover: 'Tapar con aluminio',
+  attach_condenser: 'Instalar condensador',
+  cool: 'Enfriar a temperatura ambiente',
+  reflux: 'Iniciar reflujo (30 min)',
+  weigh_and_transfer: 'Transferir al matraz',
+  add_reagent: 'Agregar reactivo',
+  add_indicator: 'Agregar indicador',
+};
+
+const ANIMATING_LABELS = {
+  cover: 'Cubriendo...',
+  attach_condenser: 'Instalando condensador...',
+  cool: 'Enfriando...',
+  reflux: 'Reflujo en curso...',
+  weigh_and_transfer: 'Transfiriendo...',
+  add_reagent: 'Agregando reactivo...',
+  add_indicator: 'Añadiendo indicador...',
+};
+
+function getActionLabel(action) {
+  return ACTION_LABELS[action] || 'Ejecutar paso';
+}
+
+function getAnimatingLabel(action) {
+  return ANIMATING_LABELS[action] || 'Procesando...';
+}
 
 function SequentialAssemblyView({
-  steps, assembly,
+  steps, assembly, assemblyMode,
   practiceId, sessionId, completedSteps, completeStep,
   setAssemblyCorrect, setCurrentStage,
   navigate,
@@ -424,6 +456,7 @@ function SequentialAssemblyView({
     currentStepIndex, currentStep, totalSteps,
     isAnimating, completed, flaskState,
     executeStep, cleanup, reset,
+    isDropStep, dropCount, isDropping, addDrop, finishDrops,
   } = assembly;
 
   const [showSummary, setShowSummary] = useState(false);
@@ -468,20 +501,6 @@ function SequentialAssemblyView({
 
   const handleExecuteStep = () => {
     executeStep();
-  };
-
-  // Button label based on current step action
-  const getActionLabel = () => {
-    if (!currentStep) return 'Ejecutar paso';
-    const action = currentStep.action;
-    switch (action) {
-      case 'measure_and_transfer': return 'Pipetear y transferir';
-      case 'add_reagent': return `Agregar ${currentStep.reagent ? '' : 'reactivo'}`;
-      case 'cover': return 'Tapar con aluminio';
-      case 'add_indicator': return 'Agregar indicador';
-      case 'transfer': return 'Transferir';
-      default: return 'Ejecutar paso';
-    }
   };
 
   return (
@@ -545,13 +564,72 @@ function SequentialAssemblyView({
                   </div>
                 )}
 
-                <Button
-                  onClick={handleExecuteStep}
-                  disabled={isAnimating}
-                  style={{ width: '100%' }}
-                >
-                  {isAnimating ? 'Ejecutando...' : getActionLabel()}
-                </Button>
+                {/* Button-only actions (reflux/condenser steps — no drag equivalent) */}
+                {['attach_condenser', 'cool', 'reflux', 'weigh_and_transfer'].includes(currentStep.action) && (
+                  <Button
+                    onClick={handleExecuteStep}
+                    disabled={isAnimating}
+                    style={{ width: '100%' }}
+                  >
+                    {isAnimating ? getAnimatingLabel(currentStep.action) : getActionLabel(currentStep.action)}
+                  </Button>
+                )}
+
+                {/* Drop-based steps (add_indicator) — click to add drops */}
+                {currentStep.action === 'add_indicator' && (
+                  <div>
+                    <div className="drop-counter" style={{ marginBottom: '8px' }}>
+                      <span>Gotas:</span>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '1.2rem',
+                        fontWeight: 700,
+                        color: 'var(--color-primary)',
+                      }}>
+                        {dropCount}
+                      </span>
+                    </div>
+
+                    <div style={{
+                      padding: '10px 14px',
+                      background: '#EFF6FF',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid #BFDBFE',
+                      fontSize: '0.85rem',
+                      color: '#1D4ED8',
+                      marginBottom: '12px',
+                    }}>
+                      {isDropping
+                        ? 'Agregando gota...'
+                        : 'Haz clic sobre el frasco de indicador en el canvas'}
+                    </div>
+
+                    <Button
+                      onClick={finishDrops}
+                      disabled={dropCount < 1 || isDropping}
+                      variant="success"
+                      style={{ width: '100%' }}
+                    >
+                      Listo — {dropCount} {dropCount === 1 ? 'gota' : 'gotas'}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Drag-based steps — hint directs to canvas */}
+                {!['attach_condenser', 'cool', 'reflux', 'weigh_and_transfer', 'add_indicator'].includes(currentStep.action) && (
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#EFF6FF',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid #BFDBFE',
+                    fontSize: '0.85rem',
+                    color: '#1D4ED8',
+                  }}>
+                    {isAnimating
+                      ? getAnimatingLabel(currentStep.action)
+                      : 'Arrastra el reactivo hacia el matraz en el canvas →'}
+                  </div>
+                )}
               </div>
             )}
 
@@ -583,16 +661,33 @@ function SequentialAssemblyView({
           </div>
         </div>
 
-        {/* Right: Sequential Canvas */}
+        {/* Right: Canvas — reflux mode for P2, drag mode for P4 */}
         <div className="titration-canvas-wrapper">
-          <SequentialAssemblyBench
-            width={500}
-            height={480}
-            flaskState={flaskState}
-            isAnimating={isAnimating}
-            currentStepIndex={currentStepIndex}
-            currentAction={currentStep?.action || ''}
-          />
+          {assemblyMode === 'reflux' ? (
+            <RefluxBench
+              width={500}
+              height={480}
+              flaskState={flaskState}
+              isAnimating={isAnimating}
+              currentAction={currentStep?.action || ''}
+            />
+          ) : (
+            <SequentialAssemblyBench
+              width={500}
+              height={480}
+              flaskState={flaskState}
+              isAnimating={isAnimating}
+              currentStepIndex={currentStepIndex}
+              currentAction={currentStep?.action || ''}
+              completed={completed}
+              onExecuteStep={handleExecuteStep}
+              practiceId={practiceId}
+              isDropStep={isDropStep}
+              isDropping={isDropping}
+              onAddDrop={addDrop}
+              dropColor="#C07808"
+            />
+          )}
         </div>
       </div>
     </div>

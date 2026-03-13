@@ -4,12 +4,14 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import useSimulatorStore from '../../store/useSimulatorStore';
 import * as api from '../../api/client';
-import { calculatePractice4, calculatePractice5 } from '../../utils/chemistryCalculations';
+import { calculatePractice2, calculatePractice3, calculatePractice4, calculatePractice5 } from '../../utils/chemistryCalculations';
 import CalculationForm from '../ui/CalculationForm';
 import Button from '../common/Button';
 import '../../styles/stages.css';
 
 const formulaMap = {
+  2: calculatePractice2,
+  3: calculatePractice3,
   4: calculatePractice4,
   5: calculatePractice5,
 };
@@ -48,11 +50,11 @@ export default function S7_Calculation() {
     try {
       const resp = await api.validateCalculation(sessionId, studentResult);
       setResult(resp);
-      setCalculationResults(studentResult, resp.correct_result, resp.percent_error);
+      setCalculationResults(studentResult, resp.theoretical_result, resp.percent_error);
 
       if (calc?.interpretation?.ranges) {
         const range = calc.interpretation.ranges.find(
-          (r) => resp.correct_result >= r.min && resp.correct_result < r.max
+          (r) => resp.theoretical_result >= r.min && resp.theoretical_result < r.max
         );
         setInterpretation(range || null);
       }

@@ -25,6 +25,13 @@ INSTRUMENTS = {
         "unit": "mL",
         "icon": "flask",
     },
+    "MAT-100": {
+        "name": "Matraz de 100 mL",
+        "type": "contenedor",
+        "capacity": 100,
+        "unit": "mL",
+        "icon": "flask",
+    },
     "ERL-250": {
         "name": "Matraz Erlenmeyer 250 mL",
         "type": "contenedor",
@@ -375,13 +382,6 @@ SAMPLES = {
 }
 
 DISTRACTORS = {
-    "MAT-100": {
-        "name": "Matraz de 100 mL",
-        "type": "contenedor",
-        "capacity": 100,
-        "unit": "mL",
-        "icon": "flask",
-    },
     "BUR-025": {
         "name": "Bureta de 25 mL",
         "type": "dosificacion",

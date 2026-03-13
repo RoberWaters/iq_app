@@ -15,7 +15,7 @@ export default function S5_Execution() {
   const {
     practiceConfig, practiceId, sessionId,
     setRecordedVolume, setCurrentStage, measuredValue,
-    bufferVolume, indicatorDrops,
+    bufferVolume, indicatorDrops, selectedSampleId,
   } = useSimulatorStore();
   const { initTitration, volumeAdded } = useTitrationStore();
   const [showConfirm, setShowConfirm] = useState(false);
@@ -25,14 +25,17 @@ export default function S5_Execution() {
     const titration = practiceConfig.titration;
     const assemblyConfig = practiceConfig.assemblyConfig;
 
-    const refVol = titration.expectedVolume;
     const refValue = titration.referenceValue || 100;
     const measured = measuredValue || refValue;
-    let expectedVol = refVol;
+    let baseVol = titration.expectedVolume;
+    if (selectedSampleId && titration.volumesBySample?.[selectedSampleId]) {
+      baseVol = titration.volumesBySample[selectedSampleId];
+    }
+    let expectedVol = baseVol;
     if (titration.proportionality === 'direct') {
-      expectedVol = (refVol / refValue) * measured;
+      expectedVol = (baseVol / refValue) * measured;
     } else if (titration.proportionality === 'inverse') {
-      expectedVol = (refVol * refValue) / measured;
+      expectedVol = (baseVol * refValue) / measured;
     }
 
     const modifiers = {};
@@ -47,7 +50,7 @@ export default function S5_Execution() {
     }
 
     initTitration(titration, expectedVol, modifiers);
-  }, [practiceConfig, measuredValue, bufferVolume, indicatorDrops, initTitration]);
+  }, [practiceConfig, measuredValue, selectedSampleId, bufferVolume, indicatorDrops, initTitration]);
 
   useEffect(() => {
     startTitration();

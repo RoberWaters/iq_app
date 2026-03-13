@@ -134,7 +134,7 @@ export default function CalculationForm({ variables, onSubmit, onAutoCalculate, 
             {result.is_within_tolerance ? 'Correcto' : 'Incorrecto'}
           </div>
           <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div>Resultado correcto: <strong>{result.correct_result}</strong></div>
+            <div>Resultado correcto: <strong>{result.theoretical_result}</strong></div>
             <div>Tu resultado: <strong>{result.student_result}</strong></div>
             <div>Error: <strong>{result.percent_error}%</strong></div>
           </div>

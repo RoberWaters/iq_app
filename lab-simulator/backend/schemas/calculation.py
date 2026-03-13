@@ -10,6 +10,7 @@ class CalculationValidateRequest(BaseModel):
 
 class CalculationValidateResponse(BaseModel):
     correct_result: float
+    theoretical_result: float
     student_result: float
     percent_error: float
     is_within_tolerance: bool

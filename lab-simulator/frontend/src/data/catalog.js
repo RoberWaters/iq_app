@@ -2,6 +2,7 @@ export const INSTRUMENTS = {
   "BAL-001":  { name: "Balanza analítica",         type: "medicion",     capacity: null, unit: "g",  icon: "balance" },
   "MAT-250":  { name: "Matraz de 250 mL",           type: "contenedor",   capacity: 250,  unit: "mL", icon: "flask" },
   "MAT-050":  { name: "Matraz de 50 mL",            type: "contenedor",   capacity: 50,   unit: "mL", icon: "flask" },
+  "MAT-100":  { name: "Matraz de 100 mL",           type: "contenedor",   capacity: 100,  unit: "mL", icon: "flask" },
   "ERL-250":  { name: "Matraz Erlenmeyer 250 mL",          type: "contenedor",   capacity: 250,  unit: "mL", icon: "erlenmeyer" },
   "ERL-100":  { name: "Matraz Erlenmeyer 100 mL",          type: "contenedor",   capacity: 100,  unit: "mL", icon: "erlenmeyer" },
   "ERL-050":  { name: "Matraz Erlenmeyer 50 mL",           type: "contenedor",   capacity: 50,   unit: "mL", icon: "erlenmeyer" },
@@ -58,7 +59,6 @@ export const SAMPLES = {
 };
 
 export const DISTRACTORS = {
-  "MAT-100": { name: "Matraz de 100 mL",          type: "contenedor",   capacity: 100, unit: "mL", icon: "flask" },
   "BUR-025": { name: "Bureta de 25 mL",           type: "dosificacion", capacity: 25,  unit: "mL", icon: "burette" },
   "PRO-100": { name: "Probeta de 100 mL",         type: "medicion",     capacity: 100, unit: "mL", icon: "graduated-cyl" },
   "ERL-500": { name: "Matraz Erlenmeyer 500 mL",         type: "contenedor",   capacity: 500, unit: "mL", icon: "erlenmeyer" },

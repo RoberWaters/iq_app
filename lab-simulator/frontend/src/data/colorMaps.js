@@ -1,4 +1,17 @@
 export const COLOR_MAPS = {
+  3: [
+    { progress: 0.00, color: "#FFE066", description: "Amarillo — indicador K₂CrO₄" },
+    { progress: 0.15, color: "#FFD84D", description: "Amarillo ligeramente turbio" },
+    { progress: 0.30, color: "#FFD033", description: "Amarillo con turbidez blanca" },
+    { progress: 0.50, color: "#FFC81A", description: "Amarillo-naranja turbio" },
+    { progress: 0.70, color: "#FFC000", description: "Amarillo-naranja" },
+    { progress: 0.85, color: "#FFB030", description: "Naranja cálido" },
+    { progress: 0.93, color: "#F0A040", description: "Naranja rojizo" },
+    { progress: 0.97, color: "#E89050", description: "Rojo-naranja suave" },
+    { progress: 1.00, color: "#D08050", description: "Rojo suave — PUNTO FINAL" },
+    { progress: 1.05, color: "#C07040", description: "Rojo ladrillo (exceso)" },
+    { progress: 1.15, color: "#A05030", description: "Rojo oscuro (exceso marcado)" },
+  ],
   4: [
     { progress: 0.00, color: "#FFF8E0", description: "Beige pálido — inicio" },
     { progress: 0.10, color: "#FFF6D8", description: "Beige claro" },

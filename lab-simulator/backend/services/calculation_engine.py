@@ -43,23 +43,40 @@ def validate_student_calculation(practice_id, recorded_volume, measured_value, s
         M_KSCN = 0.08
         PM_Cl = 35.45
         correct = ((V_AgNO3 * M_AgNO3) - (recorded_volume * M_KSCN)) * PM_Cl / measured_value
+    elif practice_id == 3:
+        # Argentometry (Mohr): mg Cl⁻/mL = (V_AgNO3 × M_AgNO3 × PM_Cl) / V_muestra
+        M_AgNO3 = 0.010
+        PM_Cl = 35.45
+        correct = (recorded_volume * M_AgNO3 * PM_Cl) / measured_value
+    elif practice_id == 2:
+        # Saponification index: IS = [(V_KOH × M_KOH) - (V_HCl × M_HCl)] × PM_KOH × 1000 / m_grasa
+        # recorded_volume = V_HCl in mL; measured_value = fat mass in g
+        V_KOH = 25.0    # mL
+        M_KOH = 0.50    # mol/L
+        M_HCl = 0.50    # mol/L
+        PM_KOH = 56.11  # g/mol
+        correct = ((V_KOH / 1000 * M_KOH) - (recorded_volume / 1000 * M_HCl)) * PM_KOH * 1000 / measured_value
     else:
         correct = 0.0
 
-    if correct == 0:
+    # Theoretical result uses the practice's reference expected values
+    theoretical = calc.get("expectedResult", correct)
+
+    if theoretical == 0:
         percent_error = 0.0
     else:
-        percent_error = abs(student_result - correct) / correct * 100
+        percent_error = abs(student_result - theoretical) / theoretical * 100
 
     is_within = percent_error <= tolerance
 
     if is_within:
         feedback = f"Correcto. Tu resultado ({student_result:.2f}) está dentro del {tolerance}% de tolerancia. Error: {percent_error:.2f}%."
     else:
-        feedback = f"Tu resultado ({student_result:.2f}) difiere del valor esperado ({correct:.2f}) con un error de {percent_error:.2f}%."
+        feedback = f"Tu resultado ({student_result:.2f}) difiere del valor teórico ({theoretical:.2f}) con un error de {percent_error:.2f}%."
 
     return {
         "correct_result": round(correct, 2),
+        "theoretical_result": round(theoretical, 2),
         "student_result": round(student_result, 2),
         "percent_error": round(percent_error, 2),
         "is_within_tolerance": is_within,

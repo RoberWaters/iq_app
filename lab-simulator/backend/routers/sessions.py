@@ -114,10 +114,12 @@ async def update_measurement(session_id: str, body: MeasurementUpdate, db: Async
 
     session.measured_value = body.value
     session.measured_unit = body.unit
+    if body.sample_id is not None:
+        session.sample_id = body.sample_id
 
-    # Recalculate expected volume
+    # Recalculate expected volume (pass sample_id for per-sample volume tables)
     try:
-        vol_result = get_expected_volume(session.practice_id, body.value)
+        vol_result = get_expected_volume(session.practice_id, body.value, body.sample_id)
         session.expected_volume = vol_result["expected_volume"]
     except Exception:
         pass

@@ -26,6 +26,30 @@ export function calculateExpectedVolume(titration, measuredValue, sampleId = nul
 }
 
 /**
+ * Calculate practice 2 result: IS in mg KOH/g fat (Saponification Index)
+ * Formula: IS = [(V_KOH × M_KOH) - (V_HCl × M_HCl)] × PM_KOH × 1000 / m_grasa
+ * @param {number} vHCl - HCl volume in mL (from burette)
+ * @param {number} mGrasa - Fat mass in g
+ */
+export function calculatePractice2(vHCl, mGrasa) {
+  const V_KOH = 25.0;   // mL
+  const M_KOH = 0.50;   // mol/L
+  const M_HCl = 0.50;   // mol/L
+  const PM_KOH = 56.11; // g/mol
+  return ((V_KOH / 1000 * M_KOH) - (vHCl / 1000 * M_HCl)) * PM_KOH * 1000 / mGrasa;
+}
+
+/**
+ * Calculate practice 3 result: mg Cl⁻/mL (Argentometry — Mohr direct titration)
+ * Formula: (V_AgNO3 × M_AgNO3 × PM_Cl) / V_muestra
+ */
+export function calculatePractice3(vAgNO3, vMuestra) {
+  const M_AgNO3 = 0.010;
+  const PM_Cl = 35.45;
+  return (vAgNO3 * M_AgNO3 * PM_Cl) / vMuestra;
+}
+
+/**
  * Calculate practice 4 result: mg Cl⁻/mL (Volhard back-titration)
  * Formula: [(V_AgNO3 × M_AgNO3) - (V_KSCN × M_KSCN)] × PM_Cl / V_muestra
  */

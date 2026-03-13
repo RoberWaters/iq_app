@@ -6,6 +6,7 @@ export default function TitrationControls({ onRecord }) {
     volumeAdded, currentColor, maxBuretteVolume,
     handleDrop, startStream, stopStream,
     isDropping, isPastEndpoint,
+    dropVolume, streamVolume,
   } = useTitration();
 
   return (
@@ -21,7 +22,7 @@ export default function TitrationControls({ onRecord }) {
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
           <Button onClick={handleDrop} variant="outline" style={{ flex: 1 }}>
-            Gota (0.05 mL)
+            Gota ({dropVolume.toFixed(2)} mL)
           </Button>
           <Button
             onMouseDown={startStream}
@@ -30,7 +31,7 @@ export default function TitrationControls({ onRecord }) {
             variant="primary"
             style={{ flex: 1 }}
           >
-            {isDropping ? 'Agregando...' : 'Chorro (0.50 mL)'}
+            {isDropping ? 'Agregando...' : `Chorro (${streamVolume.toFixed(2)} mL)`}
           </Button>
         </div>
 

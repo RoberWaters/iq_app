@@ -34,10 +34,10 @@ export const updateStage = (sessionId, stage, data = null) =>
     body: JSON.stringify({ stage, data }),
   });
 
-export const updateMeasurement = (sessionId, value, unit) =>
+export const updateMeasurement = (sessionId, value, unit, sampleId = null) =>
   request(`/sessions/${sessionId}/measurement`, {
     method: 'PUT',
-    body: JSON.stringify({ value, unit }),
+    body: JSON.stringify({ value, unit, ...(sampleId ? { sample_id: sampleId } : {}) }),
   });
 
 export const updateMaterials = (sessionId, instruments, reagents) =>

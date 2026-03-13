@@ -15,6 +15,7 @@ const useSimulatorStore = create((set) => ({
   // Measurement
   measuredValue: null,
   measuredUnit: null,
+  selectedSampleId: null,
 
   // Assembly
   completedSteps: [],
@@ -40,6 +41,7 @@ const useSimulatorStore = create((set) => ({
     materialsCorrect: null,
     measuredValue: null,
     measuredUnit: null,
+    selectedSampleId: null,
     completedSteps: [],
     assemblyCorrect: false,
     bufferVolume: null,
@@ -74,6 +76,7 @@ const useSimulatorStore = create((set) => ({
 
   // Measurement
   setMeasurement: (value, unit) => set({ measuredValue: value, measuredUnit: unit }),
+  setSelectedSampleId: (id) => set({ selectedSampleId: id }),
 
   // Assembly
   completeStep: (stepId) => set((state) => ({
@@ -103,6 +106,7 @@ const useSimulatorStore = create((set) => ({
     materialsCorrect: null,
     measuredValue: null,
     measuredUnit: null,
+    selectedSampleId: null,
     completedSteps: [],
     assemblyCorrect: false,
     bufferVolume: null,

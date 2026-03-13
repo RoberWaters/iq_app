@@ -41,6 +41,7 @@ class StageUpdate(BaseModel):
 class MeasurementUpdate(BaseModel):
     value: float
     unit: str
+    sample_id: Optional[str] = None
 
 
 class MaterialsUpdate(BaseModel):

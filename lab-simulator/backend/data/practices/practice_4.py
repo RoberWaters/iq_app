@@ -13,11 +13,11 @@ PRACTICE_4 = {
     "comingSoon": False,
 
     # Stage 2: Materials
-    "requiredInstruments": ["PIP-V10", "MAT-050", "BUR-050", "PAP-ALU"],
+    "requiredInstruments": ["PIP-V10", "MAT-100", "BUR-050", "PAP-ALU"],
     "requiredReagents": ["AGUA-DEST", "HNO3-1A1", "AGNO3-010M", "NITROBENZ", "IND-ALUMFE", "KSCN-008M"],
     "requiredSample": "SOL-SAL-2",
 
-    "distractorInstruments": ["PRO-250", "ERL-250", "PIP-V25", "BEA-250"],
+    "distractorInstruments": ["MAT-050", "PRO-250", "ERL-250", "PIP-V25", "BEA-250"],
     "distractorReagents": ["AGNO3-001M", "IND-K2CRO4", "EDTA-001M", "TAMPON-PH10"],
 
     # Stage 3: Measurement — fixed pipette 10 mL (no interactive fill)
@@ -32,25 +32,18 @@ PRACTICE_4 = {
         "instruction": "Tomar exactamente 10 mL de la solución salina con la pipeta volumétrica de 10 mL y transferir al matraz.",
     },
 
-    # Stage 4: Assembly — 7 sequential steps per spec
-    # Order: muestra → agua destilada → HNO₃ → AgNO₃ 50 mL → papel aluminio → nitrobenceno → indicador
+    # Initial flask state: sample already transferred in S3
+    "initialFlaskState": {
+        "fillLevel": 0.08,
+        "containerColor": "#F8F8FF",
+        "label": "10 mL muestra",
+    },
+
+    # Stage 4: Assembly — 6 sequential steps (sample already in flask from S3)
+    # Order: agua destilada → HNO₃ → AgNO₃ 50 mL → papel aluminio → nitrobenceno → indicador
     "assemblySteps": [
         {
             "order": 1,
-            "id": "medir_muestra",
-            "action": "measure_and_transfer",
-            "description": "Pipetear 10 mL de solución salina al matraz de 50 mL",
-            "instrument": "PIP-V10",
-            "sample": "SOL-SAL-2",
-            "volume": 10,
-            "visualAfter": {
-                "containerColor": "#F8F8FF",
-                "fillLevel": 0.14,
-                "label": "10 mL muestra",
-            },
-        },
-        {
-            "order": 2,
             "id": "agregar_agua",
             "action": "add_reagent",
             "description": "Agregar 10 mL de agua destilada",
@@ -59,12 +52,12 @@ PRACTICE_4 = {
             "unit": "mL",
             "visualAfter": {
                 "containerColor": "#F8F8FF",
-                "fillLevel": 0.27,
+                "fillLevel": 0.14,
                 "label": "Muestra diluida",
             },
         },
         {
-            "order": 3,
+            "order": 2,
             "id": "agregar_hno3",
             "action": "add_reagent",
             "description": "Agregar 1 mL de HNO₃ 1:1 para acidificar",
@@ -73,12 +66,12 @@ PRACTICE_4 = {
             "unit": "mL",
             "visualAfter": {
                 "containerColor": "#F8F8FF",
-                "fillLevel": 0.29,
+                "fillLevel": 0.15,
                 "label": "Medio ácido",
             },
         },
         {
-            "order": 4,
+            "order": 3,
             "id": "agregar_agno3",
             "action": "add_reagent",
             "description": "Agregar 50 mL de AgNO₃ 0.10 M (exceso conocido)",
@@ -88,13 +81,13 @@ PRACTICE_4 = {
             "criticalNote": "El AgNO₃ se agrega en EXCESO para asegurar la precipitación completa de los cloruros como AgCl. Se forma un precipitado blanco.",
             "visualAfter": {
                 "containerColor": "#F5F5E8",
-                "fillLevel": 0.78,
+                "fillLevel": 0.40,
                 "label": "Precipitado AgCl blanco",
                 "precipitate": {"type": "granular", "color": "#FFFFFF", "opacity": 0.8},
             },
         },
         {
-            "order": 5,
+            "order": 4,
             "id": "tapar_aluminio",
             "action": "cover",
             "description": "Tapar el matraz con papel aluminio",
@@ -102,14 +95,14 @@ PRACTICE_4 = {
             "criticalNote": "El papel aluminio protege la solución de la luz, ya que el AgCl es fotosensible y se oscurece con la luz solar.",
             "visualAfter": {
                 "containerColor": "#F5F5E8",
-                "fillLevel": 0.78,
+                "fillLevel": 0.40,
                 "label": "Protegido de la luz",
                 "precipitate": {"type": "granular", "color": "#FFFFFF", "opacity": 0.8},
                 "foilCovered": True,
             },
         },
         {
-            "order": 6,
+            "order": 5,
             "id": "agregar_nitrobenceno",
             "action": "add_reagent",
             "description": "Agregar 1 mL de nitrobenceno y agitar vigorosamente",
@@ -119,14 +112,14 @@ PRACTICE_4 = {
             "criticalNote": "El nitrobenceno recubre el precipitado de AgCl impidiendo que reaccione con el KSCN durante la retrotitulación. El precipitado se ve más compacto, como encapsulado.",
             "visualAfter": {
                 "containerColor": "#F8F8E8",
-                "fillLevel": 0.80,
+                "fillLevel": 0.41,
                 "label": "Precipitado encapsulado",
                 "precipitate": {"type": "compact", "color": "#F0F0E0", "opacity": 0.6},
                 "foilCovered": True,
             },
         },
         {
-            "order": 7,
+            "order": 6,
             "id": "agregar_indicador",
             "action": "add_indicator",
             "description": "Agregar 1 mL (20 gotas) de alumbre férrico como indicador",
@@ -135,7 +128,7 @@ PRACTICE_4 = {
             "unit": "mL",
             "visualAfter": {
                 "containerColor": "#FFF8E0",
-                "fillLevel": 0.83,
+                "fillLevel": 0.42,
                 "label": "Listo para titular — beige pálido",
                 "precipitate": {"type": "compact", "color": "#F0F0E0", "opacity": 0.6},
                 "foilCovered": True,
@@ -156,15 +149,15 @@ PRACTICE_4 = {
         "titrantColor": "#F0F0F0",
         "dropColor": "#F0F0F0",
         "titrantInstrument": "BUR-050",
-        "sampleContainer": "MAT-050",
+        "sampleContainer": "MAT-100",
         "maxBuretteVolume": 50,
 
         "expectedVolume": 16.93,
         "referenceValue": 10,
         "proportionality": "fixed",
 
-        # Flask fill level during titration (post-assembly: ~73 mL in flask)
-        "flaskFillLevel": 0.85,
+        # Flask fill level during titration (post-assembly: ~73 mL in 100 mL flask)
+        "flaskFillLevel": 0.48,
 
         "colorTransitions": [
             {"progress": 0.00, "color": "#FFF8E0", "description": "Beige pálido — inicio"},
@@ -194,7 +187,7 @@ PRACTICE_4 = {
             ],
         },
 
-        "dropVolume": 0.05,
+        "dropVolume": 0.01,
         "streamVolume": 0.50,
         "endpointTolerance": 0.5,
     },

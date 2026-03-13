@@ -2,30 +2,49 @@ import { useState, useCallback, useRef } from 'react';
 
 /**
  * Hook that manages sequential assembly for practices with step-by-step
- * click-to-add assembly (e.g., Practice 4 Volhard).
+ * click-to-add assembly (e.g., Practice 4 Volhard, Practice 3 Mohr).
  *
  * Unlike useAssembly (P5's interactive sliders/drags), this hook walks through
  * an ordered list of steps where each step is executed with a button click
  * and may trigger a pour/add animation.
+ *
+ * `add_indicator` steps use a multi-click drop mode: each click adds one drop
+ * with a brief animation. The student presses "Listo" to finish and advance.
+ *
+ * @param {Array} assemblySteps - Ordered assembly step configs
+ * @param {Object|null} initialFlaskState - Optional initial flask visual state
+ *   (e.g., when sample was transferred in S3 before assembly begins)
  */
+
+const DEFAULT_FLASK = {
+  fillLevel: 0,
+  containerColor: '#F8F8FF',
+  label: '',
+  precipitate: null,
+  foilCovered: false,
+  condenserOn: false,
+};
 
 function easeOutQuad(t) {
   return t * (2 - t);
 }
 
-export default function useSequentialAssembly(assemblySteps = []) {
+export default function useSequentialAssembly(assemblySteps = [], initialFlaskState = null) {
+  const startFlask = initialFlaskState
+    ? { ...DEFAULT_FLASK, ...initialFlaskState }
+    : DEFAULT_FLASK;
+  const startFlaskRef = useRef(startFlask);
+
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [completed, setCompleted] = useState(false);
 
+  // Drop mode state for add_indicator steps
+  const [dropCount, setDropCount] = useState(0);
+  const [isDropping, setIsDropping] = useState(false); // brief per-drop animation flag
+
   // Flask visual state — evolves step by step from visualAfter configs
-  const [flaskState, setFlaskState] = useState({
-    fillLevel: 0,
-    containerColor: '#F8F8FF',
-    label: '',
-    precipitate: null,
-    foilCovered: false,
-  });
+  const [flaskState, setFlaskState] = useState(startFlask);
 
   const animTimeout = useRef(null);
   const rafRef = useRef(null);
@@ -42,6 +61,7 @@ export default function useSequentialAssembly(assemblySteps = []) {
       label: visualAfter.label ?? prev.label,
       precipitate: visualAfter.precipitate !== undefined ? visualAfter.precipitate : prev.precipitate,
       foilCovered: visualAfter.foilCovered ?? prev.foilCovered,
+      condenserOn: visualAfter.condenserOn ?? prev.condenserOn,
     }));
   }, []);
 
@@ -74,17 +94,28 @@ export default function useSequentialAssembly(assemblySteps = []) {
     rafRef.current = requestAnimationFrame(animate);
   }, [flaskState.fillLevel, applyVisualAfter]);
 
+  // Whether the current step is a drop-mode indicator step
+  const isDropStep = currentStep?.action === 'add_indicator';
+
   const executeStep = useCallback(() => {
     if (isAnimating || currentStepIndex >= totalSteps) return;
 
     const step = assemblySteps[currentStepIndex];
     if (!step) return;
 
+    // add_indicator is handled by addDrop/finishDrops — skip if called directly
+    if (step.action === 'add_indicator') return;
+
     const visualAfter = step.visualAfter;
     const action = step.action;
 
-    // For "cover" action, apply instantly (no pour animation)
-    if (action === 'cover') {
+    // Instant-ish actions (no pour animation): cover, attach_condenser, cool
+    const instantActions = {
+      cover: 600,
+      attach_condenser: 1000,
+      cool: 1200,
+    };
+    if (action in instantActions) {
       setIsAnimating(true);
       animTimeout.current = setTimeout(() => {
         applyVisualAfter(visualAfter);
@@ -95,12 +126,12 @@ export default function useSequentialAssembly(assemblySteps = []) {
         } else {
           setCurrentStepIndex(nextIndex);
         }
-      }, 600);
+      }, instantActions[action]);
       return;
     }
 
-    // For add_indicator (liquid indicator like alumbre férrico), short animation
-    if (action === 'add_indicator') {
+    // Reflux: long wait animation (no fill change, just color/heat effect)
+    if (action === 'reflux') {
       setIsAnimating(true);
       animTimeout.current = setTimeout(() => {
         applyVisualAfter(visualAfter);
@@ -111,13 +142,13 @@ export default function useSequentialAssembly(assemblySteps = []) {
         } else {
           setCurrentStepIndex(nextIndex);
         }
-      }, 800);
+      }, 3500);
       return;
     }
 
     // For pour-type actions (measure_and_transfer, add_reagent, transfer), animate fill
     const targetFill = visualAfter?.fillLevel ?? flaskState.fillLevel;
-    const duration = action === 'measure_and_transfer' ? 2000 : 1500;
+    const duration = action === 'measure_and_transfer' ? 2500 : 2500;
 
     animateFillTo(targetFill, visualAfter?.containerColor, visualAfter, duration);
 
@@ -133,6 +164,38 @@ export default function useSequentialAssembly(assemblySteps = []) {
     }, advanceDelay);
   }, [isAnimating, currentStepIndex, totalSteps, assemblySteps, flaskState.fillLevel, applyVisualAfter, animateFillTo]);
 
+  // Add a single drop (for add_indicator steps).
+  // Triggers a brief isDropping flag (400 ms) used by the canvas for the drop animation.
+  const addDrop = useCallback(() => {
+    if (isAnimating || isDropping || !isDropStep) return;
+
+    setIsDropping(true);
+    setDropCount(prev => prev + 1);
+
+    // Brief animation window — canvas shows droplet falling
+    animTimeout.current = setTimeout(() => {
+      setIsDropping(false);
+    }, 400);
+  }, [isAnimating, isDropping, isDropStep]);
+
+  // Finish the drop step: apply visualAfter and advance to next step.
+  const finishDrops = useCallback(() => {
+    if (isDropping || !isDropStep || dropCount < 1) return;
+
+    const step = assemblySteps[currentStepIndex];
+    if (!step) return;
+
+    applyVisualAfter(step.visualAfter);
+    setDropCount(0);
+
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex >= totalSteps) {
+      setCompleted(true);
+    } else {
+      setCurrentStepIndex(nextIndex);
+    }
+  }, [isDropping, isDropStep, dropCount, currentStepIndex, totalSteps, assemblySteps, applyVisualAfter]);
+
   const cleanup = useCallback(() => {
     if (animTimeout.current) clearTimeout(animTimeout.current);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -146,13 +209,9 @@ export default function useSequentialAssembly(assemblySteps = []) {
     setCurrentStepIndex(0);
     setIsAnimating(false);
     setCompleted(false);
-    setFlaskState({
-      fillLevel: 0,
-      containerColor: '#F8F8FF',
-      label: '',
-      precipitate: null,
-      foilCovered: false,
-    });
+    setDropCount(0);
+    setIsDropping(false);
+    setFlaskState(startFlaskRef.current);
   }, []);
 
   return {
@@ -165,5 +224,11 @@ export default function useSequentialAssembly(assemblySteps = []) {
     executeStep,
     cleanup,
     reset,
+    // Drop mode (add_indicator steps)
+    isDropStep,
+    dropCount,
+    isDropping,
+    addDrop,
+    finishDrops,
   };
 }

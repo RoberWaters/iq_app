@@ -3,13 +3,13 @@ export const PRACTICES = [
     id: 2, number: 2, name: "Índice de Saponificación",
     fullName: "Determinación del Índice de Saponificación de una Grasa",
     description: "Valoración por retroceso para determinar los mg de KOH necesarios para saponificar 1 g de grasa.",
-    category: "Ácido-Base", difficulty: "media", implemented: false, comingSoon: true,
+    category: "Ácido-Base", difficulty: "media", implemented: true, comingSoon: false,
   },
   {
     id: 3, number: 3, name: "Argentometría",
     fullName: "Determinación de Cloruros por Argentometría",
     description: "Determinación de la concentración de cloruros en una solución mediante titulación argentométrica.",
-    category: "Precipitación", difficulty: "media", implemented: false, comingSoon: true,
+    category: "Precipitación", difficulty: "media", implemented: true, comingSoon: false,
   },
   {
     id: 4, number: 4, name: "Método de Volhard",
