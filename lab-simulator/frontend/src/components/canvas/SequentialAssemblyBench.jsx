@@ -249,7 +249,7 @@ export default function SequentialAssemblyBench({
 
   // ── Flask state ─────────────────────────────────────────────────────────────
   const fillLevel = flaskState.fillLevel || 0;
-  const containerColor = flaskState.containerColor || '#F8F8FF';
+  const containerColor = flaskState.containerColor || '#DCE8F5';
   const label = flaskState.label || '';
   const precipitate = flaskState.precipitate;
   const foilCovered = flaskState.foilCovered || false;

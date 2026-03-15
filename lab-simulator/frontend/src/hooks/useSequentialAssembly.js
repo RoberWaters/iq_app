@@ -18,7 +18,7 @@ import { useState, useCallback, useRef } from 'react';
 
 const DEFAULT_FLASK = {
   fillLevel: 0,
-  containerColor: '#F8F8FF',
+  containerColor: '#DCE8F5',
   label: '',
   precipitate: null,
   foilCovered: false,
@@ -42,6 +42,9 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
   // Drop mode state for add_indicator steps
   const [dropCount, setDropCount] = useState(0);
   const [isDropping, setIsDropping] = useState(false); // brief per-drop animation flag
+
+  // Reflux timer state
+  const [refluxing, setRefluxing] = useState(false);
 
   // Flask visual state — evolves step by step from visualAfter configs
   const [flaskState, setFlaskState] = useState(startFlask);
@@ -106,6 +109,10 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     // add_indicator is handled by addDrop/finishDrops — skip if called directly
     if (step.action === 'add_indicator') return;
 
+    // measure_with_bottle is a two-phase step: bottle measurement (UI-driven)
+    // then pour animation (same as add_reagent). The UI calls executeStep()
+    // only after bottle measurement is confirmed.
+
     const visualAfter = step.visualAfter;
     const action = step.action;
 
@@ -130,19 +137,11 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
       return;
     }
 
-    // Reflux: long wait animation (no fill change, just color/heat effect)
+    // Reflux: timer-driven step. Sets isAnimating + refluxing flag.
+    // The reflux runs until completeReflux() is called (from the timer UI).
     if (action === 'reflux') {
       setIsAnimating(true);
-      animTimeout.current = setTimeout(() => {
-        applyVisualAfter(visualAfter);
-        setIsAnimating(false);
-        const nextIndex = currentStepIndex + 1;
-        if (nextIndex >= totalSteps) {
-          setCompleted(true);
-        } else {
-          setCurrentStepIndex(nextIndex);
-        }
-      }, 3500);
+      setRefluxing(true);
       return;
     }
 
@@ -163,6 +162,25 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
       }
     }, advanceDelay);
   }, [isAnimating, currentStepIndex, totalSteps, assemblySteps, flaskState.fillLevel, applyVisualAfter, animateFillTo]);
+
+  // Complete the reflux step: apply visualAfter, stop refluxing, advance.
+  const completeReflux = useCallback(() => {
+    if (!refluxing) return;
+
+    const step = assemblySteps[currentStepIndex];
+    if (!step) return;
+
+    applyVisualAfter(step.visualAfter);
+    setRefluxing(false);
+    setIsAnimating(false);
+
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex >= totalSteps) {
+      setCompleted(true);
+    } else {
+      setCurrentStepIndex(nextIndex);
+    }
+  }, [refluxing, currentStepIndex, totalSteps, assemblySteps, applyVisualAfter]);
 
   // Add a single drop (for add_indicator steps).
   // Triggers a brief isDropping flag (400 ms) used by the canvas for the drop animation.
@@ -211,6 +229,7 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     setCompleted(false);
     setDropCount(0);
     setIsDropping(false);
+    setRefluxing(false);
     setFlaskState(startFlaskRef.current);
   }, []);
 
@@ -230,5 +249,8 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     isDropping,
     addDrop,
     finishDrops,
+    // Reflux timer
+    refluxing,
+    completeReflux,
   };
 }

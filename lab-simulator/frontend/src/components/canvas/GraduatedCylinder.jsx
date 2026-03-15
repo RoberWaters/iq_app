@@ -15,11 +15,11 @@ export default function GraduatedCylinder({
 
   // Color: if custom liquidColor is passed, use it (for colored solutions);
   // otherwise use realistic near-transparent water
-  const waterColor = liquidColor || '#D0DDE6';
-  const waterOpacity = liquidColor ? 0.55 : 0.30;
+  const waterColor = liquidColor || '#B8D8E8';
+  const waterOpacity = liquidColor ? 0.55 : 0.38;
 
   // Meniscus geometry
-  const meniscusDepth = 3;
+  const meniscusDepth = 5;
   const liquidTopY = y + tubeHeight - liquidHeight;
   const liquidBottomY = y + tubeHeight;
   const leftX = x - tubeWidth / 2 + 2;
@@ -33,8 +33,8 @@ export default function GraduatedCylinder({
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     const px = leftX + t * liquidW;
-    // Concave meniscus: edges higher, center lower
-    const meniscusCurve = meniscusDepth * 4 * t * (1 - t);
+    // Concave meniscus (water): edges curve up, center tangent to dashed line
+    const meniscusCurve = -meniscusDepth * (1 - 4 * t * (1 - t));
     // Flowing disturbance: sine wave overlay on surface
     const wave = isFlowing
       ? Math.sin(animTime * 7 + t * Math.PI * 3) * 1.3

@@ -35,7 +35,7 @@ PRACTICE_4 = {
     # Initial flask state: sample already transferred in S3
     "initialFlaskState": {
         "fillLevel": 0.08,
-        "containerColor": "#F8F8FF",
+        "containerColor": "#DCE8F5",
         "label": "10 mL muestra",
     },
 
@@ -45,13 +45,15 @@ PRACTICE_4 = {
         {
             "order": 1,
             "id": "agregar_agua",
-            "action": "add_reagent",
-            "description": "Agregar 10 mL de agua destilada",
+            "action": "measure_with_bottle",
+            "description": "Medir 10 mL de agua destilada con la probeta y agregar al matraz",
             "reagent": "AGUA-DEST",
             "volume": 10,
             "unit": "mL",
+            "bottleLabel": "Agua\nDestilada",
+            "cylinderCapacity": 25,
             "visualAfter": {
-                "containerColor": "#F8F8FF",
+                "containerColor": "#DCE8F5",
                 "fillLevel": 0.14,
                 "label": "Muestra diluida",
             },
@@ -65,7 +67,7 @@ PRACTICE_4 = {
             "volume": 1,
             "unit": "mL",
             "visualAfter": {
-                "containerColor": "#F8F8FF",
+                "containerColor": "#DCE8F5",
                 "fillLevel": 0.15,
                 "label": "Medio ácido",
             },

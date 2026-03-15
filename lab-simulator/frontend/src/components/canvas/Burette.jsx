@@ -16,13 +16,14 @@ export default function Burette({ x, y, volumeAdded, maxVolume = 50, liquidColor
   const liquidW = liquidRightX - liquidLeftX;
 
   // Meniscus curve points (concave — edges higher, center lower)
-  const meniscusDepth = 2;
+  const meniscusDepth = 3;
   const meniscusSegs = 8;
   const meniscusPts = [];
   for (let i = 0; i <= meniscusSegs; i++) {
     const t = i / meniscusSegs;
     const px = liquidLeftX + t * liquidW;
-    const curve = meniscusDepth * 4 * t * (1 - t);
+    // Concave meniscus (water): edges curve up, center tangent to dashed line
+    const curve = -meniscusDepth * (1 - 4 * t * (1 - t));
     meniscusPts.push(px, liquidTopY + curve);
   }
 

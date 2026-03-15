@@ -164,35 +164,35 @@ export default function AnalyticalBalance({
   // ── Drag proximity state ──────────────────────────────────────────────────
   const [nearPan, setNearPan] = useState(false);
 
-  // ── Layout constants ──────────────────────────────────────────────────────
+  // ── Layout constants (responsive to canvas size) ─────────────────────────
   const benchY = height - 16;
 
   // Shelf
-  const shelfX = 70;
-  const shelfStartY = 80;
-  const shelfGap = 90;
+  const shelfX = 55;
+  const shelfStartY = 70;
+  const shelfGap = 72;
 
-  // Balance
-  const balCX = 330;
-  const bodyW = 240;
-  const bodyH = 82;
+  // Balance — centered in right portion of canvas
+  const balCX = Math.min(width * 0.62, width - 110);
+  const bodyW = 200;
+  const bodyH = 75;
   const bodyX = balCX - bodyW / 2;
   const bodyY = height - 34 - bodyH;
 
-  const chamberW = 185;
-  const chamberH = 120;
+  const chamberW = 155;
+  const chamberH = 110;
   const chamberX = balCX - chamberW / 2;
   const chamberY = bodyY - chamberH + 10;
 
   const panCX = balCX;
   const panBaseY = bodyY - 8;
   const panY = panBaseY + panOffset;
-  const panRadius = 40;
+  const panRadius = 35;
 
-  const displayW = 115;
-  const displayH = 34;
+  const displayW = 105;
+  const displayH = 30;
   const displayX = balCX - displayW / 2;
-  const displayY = bodyY + 16;
+  const displayY = bodyY + 14;
 
   // ── Home positions for each sample ────────────────────────────────────────
   const getHomePos = (sampleId) => {
@@ -243,8 +243,8 @@ export default function AnalyticalBalance({
   };
 
   // ── Leveling bubble ───────────────────────────────────────────────────────
-  const bubbleX = bodyX + 26;
-  const bubbleY = bodyY + bodyH - 16;
+  const bubbleX = bodyX + 22;
+  const bubbleY = bodyY + bodyH - 14;
 
   return (
     <Stage width={width} height={height}>
@@ -259,20 +259,20 @@ export default function AnalyticalBalance({
         ══════════════════════════════════════════════════════════════ */}
 
         {/* Shelf background */}
-        <Rect x={12} y={40} width={120} height={samples.length * shelfGap + 20}
+        <Rect x={8} y={40} width={100} height={samples.length * shelfGap + 16}
           fill="#F1F5F9" stroke="#CBD5E1" strokeWidth={1}
           cornerRadius={6} />
 
         {/* Shelf title */}
-        <Text x={12} y={18} text="Muestras disponibles"
-          fontSize={11} fill="#475569" fontFamily="IBM Plex Sans"
-          fontStyle="bold" width={120} align="center" />
+        <Text x={8} y={20} text="Muestras"
+          fontSize={10} fill="#475569" fontFamily="IBM Plex Sans"
+          fontStyle="bold" width={100} align="center" />
 
         {/* Shelf dividers */}
         {samples.map((_s, i) => (
           <Line
             key={`shelf-div-${i}`}
-            points={[20, shelfStartY + i * shelfGap - 14, 124, shelfStartY + i * shelfGap - 14]}
+            points={[16, shelfStartY + i * shelfGap - 12, 100, shelfStartY + i * shelfGap - 12]}
             stroke="#E2E8F0" strokeWidth={1}
             opacity={i > 0 ? 1 : 0}
           />
@@ -456,16 +456,16 @@ export default function AnalyticalBalance({
           fill={isStabilizing ? '#0A2A1A' : '#0A2818'} cornerRadius={2} />
         {/* Value */}
         <Text
-          x={displayX + 4} y={displayY + 5}
+          x={displayX + 4} y={displayY + 4}
           text={displayText}
-          fontSize={19} fontFamily="IBM Plex Mono"
+          fontSize={16} fontFamily="IBM Plex Mono"
           fill={isStabilizing ? '#40E870' : '#30D860'}
-          width={displayW - 26} align="right"
+          width={displayW - 22} align="right"
         />
         {/* Unit */}
         <Text
-          x={displayX + displayW - 20} y={displayY + displayH - 14}
-          text="g" fontSize={10} fontFamily="IBM Plex Mono"
+          x={displayX + displayW - 18} y={displayY + displayH - 12}
+          text="g" fontSize={9} fontFamily="IBM Plex Mono"
           fill="#30D860" opacity={0.7}
         />
         {/* Stability dot */}
@@ -477,25 +477,25 @@ export default function AnalyticalBalance({
         />
 
         {/* ── Control buttons ────────────────────────────────────────── */}
-        <Rect x={bodyX + bodyW - 72} y={bodyY + bodyH - 26} width={26} height={13}
+        <Rect x={bodyX + bodyW - 62} y={bodyY + bodyH - 22} width={24} height={12}
           fill="#4A4A5A" cornerRadius={3} stroke="#3A3A4A" strokeWidth={1} />
-        <Text x={bodyX + bodyW - 72} y={bodyY + bodyH - 24} text="TARE"
-          fontSize={6.5} fill="#C0C0D0" fontFamily="IBM Plex Mono"
-          width={26} align="center" />
-        <Rect x={bodyX + bodyW - 40} y={bodyY + bodyH - 26} width={26} height={13}
+        <Text x={bodyX + bodyW - 62} y={bodyY + bodyH - 20} text="TARE"
+          fontSize={6} fill="#C0C0D0" fontFamily="IBM Plex Mono"
+          width={24} align="center" />
+        <Rect x={bodyX + bodyW - 34} y={bodyY + bodyH - 22} width={24} height={12}
           fill="#4A4A5A" cornerRadius={3} stroke="#3A3A4A" strokeWidth={1} />
-        <Text x={bodyX + bodyW - 40} y={bodyY + bodyH - 24} text="ON"
-          fontSize={6.5} fill="#80D080" fontFamily="IBM Plex Mono"
-          width={26} align="center" />
+        <Text x={bodyX + bodyW - 34} y={bodyY + bodyH - 20} text="ON"
+          fontSize={6} fill="#80D080" fontFamily="IBM Plex Mono"
+          width={24} align="center" />
 
         {/* ── Leveling bubble ────────────────────────────────────────── */}
-        <Circle x={bubbleX} y={bubbleY} radius={9}
+        <Circle x={bubbleX} y={bubbleY} radius={8}
           fill="#F8F8F0" stroke="#B0B0A0" strokeWidth={1} />
-        <Line points={[bubbleX - 5, bubbleY, bubbleX + 5, bubbleY]}
+        <Line points={[bubbleX - 4, bubbleY, bubbleX + 4, bubbleY]}
           stroke="#D0D0C8" strokeWidth={0.5} />
-        <Line points={[bubbleX, bubbleY - 5, bubbleX, bubbleY + 5]}
+        <Line points={[bubbleX, bubbleY - 4, bubbleX, bubbleY + 4]}
           stroke="#D0D0C8" strokeWidth={0.5} />
-        <Circle x={bubbleX + 0.3} y={bubbleY - 0.2} radius={3.5}
+        <Circle x={bubbleX + 0.3} y={bubbleY - 0.2} radius={3}
           fill="#A8D8A0" opacity={0.7} stroke="#80B878" strokeWidth={0.5} />
 
         {/* ── Brand text ─────────────────────────────────────────────── */}
@@ -510,13 +510,13 @@ export default function AnalyticalBalance({
 
         {/* ── Instruction hint ───────────────────────────────────────── */}
         <Text
-          x={chamberX} y={chamberY - 22}
+          x={chamberX} y={chamberY - 18}
           text={
             confirmed ? 'Pesada registrada'
-            : activeSampleId ? 'Arrastra la muestra fuera para retirarla'
-            : 'Arrastra una muestra al plato de la balanza'
+            : activeSampleId ? 'Arrastra fuera para retirar'
+            : 'Arrastra una muestra al plato'
           }
-          fontSize={10.5} fontFamily="IBM Plex Sans"
+          fontSize={9.5} fontFamily="IBM Plex Sans"
           fill={confirmed ? '#16A34A' : '#3B82F6'}
           width={chamberW} align="center"
           opacity={0.85}

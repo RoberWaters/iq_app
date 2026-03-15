@@ -45,6 +45,7 @@ export default function PipetteBench({
   onPhaseChange,
   pipetteVolume = 10,
   flaskLabel = "Matraz 50 mL",
+  sampleColor = '#DCE8F5',
 }) {
   // Phase: 'idle' → 'aspirating' → 'loaded' → 'draining' → 'done'
   const [phase, setPhase] = useState('idle');
@@ -244,7 +245,7 @@ export default function PipetteBench({
   const showGlow = nearTarget && isDraggable;
 
   // Liquid color (saline solution — colorless, matches S4 initial flask state)
-  const liquidColor = '#F8F8FF';
+  const liquidColor = sampleColor;
 
   // Status text
   const statusText =

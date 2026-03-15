@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useSimulatorStore from '../../store/useSimulatorStore';
 import * as api from '../../api/client';
@@ -8,6 +8,7 @@ import InstructionPanel from '../ui/InstructionPanel';
 import AssemblyBench from '../canvas/AssemblyBench';
 import SequentialAssemblyBench from '../canvas/SequentialAssemblyBench';
 import RefluxBench from '../canvas/RefluxBench';
+import BottleBench from '../canvas/BottleBench';
 import Button from '../common/Button';
 import '../../styles/stages.css';
 
@@ -426,6 +427,7 @@ const ACTION_LABELS = {
   weigh_and_transfer: 'Transferir al matraz',
   add_reagent: 'Agregar reactivo',
   add_indicator: 'Agregar indicador',
+  measure_with_bottle: 'Medir y agregar',
 };
 
 const ANIMATING_LABELS = {
@@ -436,6 +438,7 @@ const ANIMATING_LABELS = {
   weigh_and_transfer: 'Transfiriendo...',
   add_reagent: 'Agregando reactivo...',
   add_indicator: 'Añadiendo indicador...',
+  measure_with_bottle: 'Vertiendo al matraz...',
 };
 
 function getActionLabel(action) {
@@ -457,11 +460,156 @@ function SequentialAssemblyView({
     isAnimating, completed, flaskState,
     executeStep, cleanup, reset,
     isDropStep, dropCount, isDropping, addDrop, finishDrops,
+    refluxing, completeReflux,
   } = assembly;
 
   const [showSummary, setShowSummary] = useState(false);
 
+  // ── Bottle measurement state (for measure_with_bottle steps) ───────────
+  const isBottleStep = currentStep?.action === 'measure_with_bottle';
+  const [bottleVolume, setBottleVolume] = useState(0);
+  const [bottleFilling, setBottleFilling] = useState(false);
+  const [bottleMeasured, setBottleMeasured] = useState(false);
+  const bottleInterval = useRef(null);
+
+  const bottleCapacity = currentStep?.cylinderCapacity || 25;
+  const bottleTarget = currentStep?.volume || 10;
+
+  const startBottleFill = useCallback(() => {
+    if (bottleMeasured || bottleInterval.current) return;
+    setBottleFilling(true);
+    bottleInterval.current = setInterval(() => {
+      setBottleVolume(prev => {
+        const next = prev + 0.2;
+        return next > bottleCapacity ? bottleCapacity : Math.round(next * 10) / 10;
+      });
+    }, 100);
+  }, [bottleMeasured, bottleCapacity]);
+
+  const stopBottleFill = useCallback(() => {
+    setBottleFilling(false);
+    if (bottleInterval.current) {
+      clearInterval(bottleInterval.current);
+      bottleInterval.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isBottleStep) return;
+    const handleUp = () => stopBottleFill();
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('mouseup', handleUp);
+    window.addEventListener('touchend', handleUp);
+    return () => {
+      stopBottleFill();
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('touchend', handleUp);
+    };
+  }, [stopBottleFill, isBottleStep]);
+
+  const adjustBottle = useCallback((delta) => {
+    if (bottleMeasured || bottleFilling) return;
+    const newVol = Math.max(0, Math.min(bottleCapacity, Math.round((bottleVolume + delta) * 10) / 10));
+    if (newVol === bottleVolume) return;
+    setBottleVolume(newVol);
+    // Trigger bottle tilt animation briefly
+    setBottleFilling(true);
+    setTimeout(() => setBottleFilling(false), 600);
+  }, [bottleMeasured, bottleFilling, bottleVolume, bottleCapacity]);
+
+  const resetBottle = () => {
+    if (bottleMeasured) return;
+    setBottleVolume(0);
+  };
+
+  const confirmBottleMeasurement = () => {
+    if (bottleVolume < 1) return;
+    stopBottleFill();
+    setBottleMeasured(true);
+  };
+
+  // Once bottle measurement is confirmed, trigger the pour animation to flask
+  useEffect(() => {
+    if (bottleMeasured && isBottleStep && !isAnimating) {
+      const timer = setTimeout(() => {
+        executeStep(); // triggers the pour animation in the hook
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [bottleMeasured, isBottleStep, isAnimating, executeStep]);
+
+  // Reset bottle state when step changes
+  const prevStepIdx = useRef(currentStepIndex);
+  useEffect(() => {
+    if (prevStepIdx.current === currentStepIndex) return;
+    prevStepIdx.current = currentStepIndex;
+    // Defer resets to avoid cascading render warnings
+    setTimeout(() => {
+      setBottleVolume(0);
+      setBottleFilling(false);
+      setBottleMeasured(false);
+    }, 0);
+  }, [currentStepIndex]);
+
+  // ── Reflux timer (30 min simulated, compressed to ~10 s real time) ──────
+  const REFLUX_DURATION_SIM = 30 * 60; // 30 min in seconds (simulated)
+  const REFLUX_DURATION_REAL = 10;     // 10 seconds real time
+  const [refluxElapsed, setRefluxElapsed] = useState(0);
+  const refluxTimerRef = useRef(null);
+  const refluxStartRef = useRef(null);
+
+  useEffect(() => {
+    if (!refluxing) {
+      if (refluxTimerRef.current) cancelAnimationFrame(refluxTimerRef.current);
+      refluxTimerRef.current = null;
+      refluxStartRef.current = null;
+      return;
+    }
+    refluxStartRef.current = null;
+    let running = true;
+    const tick = (ts) => {
+      if (!running) return;
+      if (!refluxStartRef.current) refluxStartRef.current = ts;
+      const realSec = (ts - refluxStartRef.current) / 1000;
+      const simSec = Math.min(REFLUX_DURATION_SIM, (realSec / REFLUX_DURATION_REAL) * REFLUX_DURATION_SIM);
+      setRefluxElapsed(simSec);
+      if (simSec < REFLUX_DURATION_SIM) {
+        refluxTimerRef.current = requestAnimationFrame(tick);
+      } else {
+        refluxTimerRef.current = null;
+      }
+    };
+    refluxTimerRef.current = requestAnimationFrame(tick);
+    return () => {
+      running = false;
+      if (refluxTimerRef.current) cancelAnimationFrame(refluxTimerRef.current);
+    };
+  }, [refluxing]);
+
+  const refluxProgress = refluxing ? Math.min(1, refluxElapsed / REFLUX_DURATION_SIM) : 0;
+  const refluxMinLeft = Math.max(0, Math.ceil((REFLUX_DURATION_SIM - refluxElapsed) / 60));
+  const refluxSecLeft = Math.max(0, Math.ceil((REFLUX_DURATION_SIM - refluxElapsed) % 60));
+  const refluxDone = refluxElapsed >= REFLUX_DURATION_SIM;
+
+  const handleFastForward = () => {
+    setRefluxElapsed(REFLUX_DURATION_SIM);
+  };
+
+  const handleRefluxComplete = () => {
+    setRefluxElapsed(0);
+    completeReflux();
+  };
+
   const handleReset = () => {
+    setRefluxElapsed(0);
+    setBottleVolume(0);
+    setBottleFilling(false);
+    setBottleMeasured(false);
+    if (bottleInterval.current) {
+      clearInterval(bottleInterval.current);
+      bottleInterval.current = null;
+    }
     reset();
     setShowSummary(false);
   };
@@ -564,8 +712,10 @@ function SequentialAssemblyView({
                   </div>
                 )}
 
-                {/* Button-only actions (reflux/condenser steps — no drag equivalent) */}
-                {['attach_condenser', 'cool', 'reflux', 'weigh_and_transfer'].includes(currentStep.action) && (
+                {/* Button-only actions (condenser/cool steps — no drag equivalent) */}
+                {(
+                  ['attach_condenser', 'cool'].includes(currentStep.action)
+                ) && (
                   <Button
                     onClick={handleExecuteStep}
                     disabled={isAnimating}
@@ -573,6 +723,104 @@ function SequentialAssemblyView({
                   >
                     {isAnimating ? getAnimatingLabel(currentStep.action) : getActionLabel(currentStep.action)}
                   </Button>
+                )}
+
+                {/* Reflux step — timer-driven with fast-forward */}
+                {currentStep.action === 'reflux' && (
+                  <div>
+                    {!refluxing && !refluxDone && (
+                      <Button
+                        onClick={handleExecuteStep}
+                        style={{ width: '100%' }}
+                      >
+                        {getActionLabel(currentStep.action)}
+                      </Button>
+                    )}
+
+                    {refluxing && (
+                      <div>
+                        {/* Timer display */}
+                        <div style={{
+                          padding: '16px',
+                          background: refluxDone ? '#F0FDF4' : '#FFF7ED',
+                          borderRadius: 'var(--radius-md)',
+                          border: `1px solid ${refluxDone ? '#BBF7D0' : '#FED7AA'}`,
+                          marginBottom: '12px',
+                          textAlign: 'center',
+                        }}>
+                          <div style={{
+                            fontSize: '0.75rem',
+                            color: refluxDone ? '#166534' : '#9A3412',
+                            marginBottom: '6px',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                          }}>
+                            {refluxDone ? 'Saponificación completa' : 'Reflujo en curso'}
+                          </div>
+                          <div style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '2rem',
+                            fontWeight: 700,
+                            color: refluxDone ? '#16A34A' : '#EA580C',
+                            lineHeight: 1,
+                          }}>
+                            {refluxDone
+                              ? '00:00'
+                              : `${String(refluxMinLeft).padStart(2, '0')}:${String(refluxSecLeft).padStart(2, '0')}`
+                            }
+                          </div>
+                          {/* Progress bar */}
+                          <div style={{
+                            marginTop: '10px',
+                            height: '6px',
+                            background: '#E5E7EB',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${refluxProgress * 100}%`,
+                              background: refluxDone
+                                ? 'linear-gradient(90deg, #16A34A, #22C55E)'
+                                : 'linear-gradient(90deg, #EA580C, #F97316)',
+                              borderRadius: '3px',
+                              transition: 'width 0.3s ease',
+                            }} />
+                          </div>
+                        </div>
+
+                        {!refluxDone && (
+                          <button
+                            onClick={handleFastForward}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              background: 'none',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: '0.85rem',
+                              color: 'var(--color-text-secondary)',
+                              cursor: 'pointer',
+                              marginBottom: '8px',
+                            }}
+                          >
+                            Avanzar tiempo (30 min)
+                          </button>
+                        )}
+
+                        {refluxDone && (
+                          <Button
+                            onClick={handleRefluxComplete}
+                            variant="success"
+                            style={{ width: '100%' }}
+                          >
+                            Continuar — retirar del calor
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Drop-based steps (add_indicator) — click to add drops */}
@@ -615,8 +863,82 @@ function SequentialAssemblyView({
                   </div>
                 )}
 
+                {/* Bottle measurement step — interactive fill controls */}
+                {currentStep.action === 'measure_with_bottle' && !bottleMeasured && (
+                  <div>
+                    {/* Volume readout */}
+                    <div style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '2rem',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      textAlign: 'center',
+                      marginBottom: '8px',
+                    }}>
+                      {bottleVolume.toFixed(1)} mL
+                    </div>
+
+                    <Button
+                      onPointerDown={startBottleFill}
+                      onPointerUp={stopBottleFill}
+                      onPointerLeave={stopBottleFill}
+                      onPointerCancel={stopBottleFill}
+                      variant="primary"
+                      style={{ width: '100%', touchAction: 'none', marginBottom: '8px' }}
+                      className="fill-button"
+                    >
+                      Verter agua destilada (mantener)
+                    </Button>
+
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                      <Button onClick={() => adjustBottle(-1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 1}>-1</Button>
+                      <Button onClick={() => adjustBottle(-0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 0.5}>-0.5</Button>
+                      <Button onClick={() => adjustBottle(0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume >= bottleCapacity}>+0.5</Button>
+                      <Button onClick={() => adjustBottle(1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume > bottleCapacity - 1}>+1</Button>
+                    </div>
+
+                    <Button onClick={resetBottle} variant="outline" style={{ width: '100%', marginBottom: '8px' }}>
+                      Vaciar probeta
+                    </Button>
+
+                    <div style={{
+                      padding: '8px 12px',
+                      background: '#EFF6FF',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '0.85rem',
+                      color: '#1D4ED8',
+                      border: '1px solid #BFDBFE',
+                      marginBottom: '8px',
+                    }}>
+                      Se recomiendan {bottleTarget} mL
+                    </div>
+
+                    <Button
+                      onClick={confirmBottleMeasurement}
+                      disabled={bottleVolume < 1}
+                      style={{ width: '100%' }}
+                    >
+                      Confirmar y verter al matraz
+                    </Button>
+                  </div>
+                )}
+
+                {/* Bottle measurement confirmed — pouring to flask */}
+                {currentStep.action === 'measure_with_bottle' && bottleMeasured && (
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#EFF6FF',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid #BFDBFE',
+                    fontSize: '0.85rem',
+                    color: '#1D4ED8',
+                  }}>
+                    {isAnimating ? getAnimatingLabel(currentStep.action) : 'Vertiendo al matraz...'}
+                  </div>
+                )}
+
                 {/* Drag-based steps — hint directs to canvas */}
-                {!['attach_condenser', 'cool', 'reflux', 'weigh_and_transfer', 'add_indicator'].includes(currentStep.action) && (
+                {!['attach_condenser', 'cool', 'reflux', 'add_indicator', 'measure_with_bottle'].includes(currentStep.action) && (
                   <div style={{
                     padding: '10px 14px',
                     background: '#EFF6FF',
@@ -661,15 +983,33 @@ function SequentialAssemblyView({
           </div>
         </div>
 
-        {/* Right: Canvas — reflux mode for P2, drag mode for P4 */}
+        {/* Right: Canvas — bottle measurement, reflux, or drag assembly */}
         <div className="titration-canvas-wrapper">
-          {assemblyMode === 'reflux' ? (
+          {isBottleStep && !bottleMeasured ? (
+            <BottleBench
+              width={500}
+              height={480}
+              currentVolume={bottleVolume}
+              maxVolume={bottleCapacity}
+              isFilling={bottleFilling}
+              liquidColor="#B8D8E8"
+              sampleName={currentStep?.bottleLabel || 'Agua\nDestilada'}
+            />
+          ) : assemblyMode === 'reflux' ? (
             <RefluxBench
               width={500}
               height={480}
               flaskState={flaskState}
               isAnimating={isAnimating}
               currentAction={currentStep?.action || ''}
+              currentStepIndex={currentStepIndex}
+              completed={completed}
+              onExecuteStep={handleExecuteStep}
+              isDropStep={isDropStep}
+              isDropping={isDropping}
+              onAddDrop={addDrop}
+              dropColor="#E91E8C"
+              refluxProgress={refluxProgress}
             />
           ) : (
             <SequentialAssemblyBench

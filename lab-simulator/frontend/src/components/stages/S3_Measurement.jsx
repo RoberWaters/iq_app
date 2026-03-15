@@ -4,6 +4,7 @@ import useSimulatorStore from '../../store/useSimulatorStore';
 import * as api from '../../api/client';
 import MeasurementBench from '../canvas/MeasurementBench';
 import PipetteBench from '../canvas/PipetteBench';
+import BottleBench from '../canvas/BottleBench';
 import AnalyticalBalance from '../canvas/AnalyticalBalance';
 import Button from '../common/Button';
 import { INSTRUMENTS } from '../../data/catalog';
@@ -25,6 +26,7 @@ export default function S3_Measurement() {
   const measurement = practiceConfig?.measurement;
   const isFixed = measurement?.fixedValue === true;
   const isMass = measurement?.type === 'mass';
+  const isBottle = measurement?.source === 'bottle';
 
   const [volume, setVolume] = useState(isFixed ? (measurement?.defaultValue || 10) : 0);
   const [confirmed, setConfirmed] = useState(false);
@@ -44,16 +46,17 @@ export default function S3_Measurement() {
   const maxVal = measurement?.range?.[1] || 250;
 
   // Hold-to-fill logic (only for interactive mode)
+  const fillIncrement = maxVal <= 25 ? 0.5 : maxVal <= 100 ? 1 : 2;
   const startFilling = useCallback(() => {
     if (confirmed || fillInterval.current || isFixed) return;
     setIsFilling(true);
     fillInterval.current = setInterval(() => {
       setVolume(prev => {
-        const next = prev + 2;
+        const next = prev + fillIncrement;
         return next > maxVal ? maxVal : Math.round(next * 10) / 10;
       });
     }, 100);
-  }, [confirmed, maxVal, isFixed]);
+  }, [confirmed, maxVal, isFixed, fillIncrement]);
 
   const stopFilling = useCallback(() => {
     setIsFilling(false);
@@ -262,10 +265,16 @@ export default function S3_Measurement() {
             <AnalyticalBalance
               width={420}
               height={340}
+              samples={(measurement.sampleOptions || []).map(sId => ({
+                id: sId,
+                label: SAMPLE_LABELS[sId] || sId,
+                color: '#F5E6C8',
+              }))}
+              activeSampleId={selectedSample}
               mass={mass}
-              hasSample={!!selectedSample}
-              sampleLabel={SAMPLE_LABELS[selectedSample] || selectedSample || ''}
-              sampleColor="#F5E6C8"
+              confirmed={confirmed}
+              onPlaceSample={(id) => setSelectedSample(id)}
+              onRemoveSample={() => setSelectedSample(null)}
             />
           </div>
         </div>
@@ -296,6 +305,7 @@ export default function S3_Measurement() {
               onTransferComplete={handleTransferComplete}
               pipetteVolume={measurement?.defaultValue || 10}
               flaskLabel={INSTRUMENTS[practiceConfig?.titration?.sampleContainer]?.name || "Matraz 50 mL"}
+              sampleColor={practiceConfig?.initialFlaskState?.containerColor || '#DCE8F5'}
             />
           </div>
 
@@ -368,6 +378,159 @@ export default function S3_Measurement() {
                 </Button>
               </>
             ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Bottle pour mode (P4 — saline from bottle into graduated cylinder)
+  if (isBottle) {
+    return (
+      <div className="stage-container">
+        <div className="stage-header">
+          <h2>Etapa 3: Medición de Muestra</h2>
+          <p>{measurement.instruction}</p>
+        </div>
+
+        <div className="measurement-interactive-layout">
+          {/* Left: Canvas */}
+          <div className="measurement-canvas-wrapper">
+            <BottleBench
+              width={460}
+              height={420}
+              currentVolume={volume}
+              maxVolume={maxVal}
+              isFilling={isFilling}
+              liquidColor={practiceConfig?.initialFlaskState?.containerColor || '#DCE8F5'}
+            />
+          </div>
+
+          {/* Right: Controls */}
+          <div className="measurement-controls-panel">
+            {/* Volume readout */}
+            <div style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '2.5rem',
+              fontWeight: 700,
+              color: 'var(--color-primary)',
+              textAlign: 'center',
+              marginBottom: '8px',
+            }}>
+              {volume.toFixed(1)} mL
+            </div>
+
+            {/* Hold-to-pour button */}
+            <Button
+              onPointerDown={startFilling}
+              onPointerUp={stopFilling}
+              onPointerLeave={stopFilling}
+              onPointerCancel={stopFilling}
+              disabled={confirmed}
+              variant="primary"
+              style={{ width: '100%', touchAction: 'none' }}
+              className="fill-button"
+            >
+              Verter solución (mantener)
+            </Button>
+
+            {/* Fine-tune buttons */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button onClick={() => adjustVolume(-1)} disabled={confirmed} variant="outline" style={{ flex: 1 }}>
+                -1
+              </Button>
+              <Button onClick={() => adjustVolume(-0.5)} disabled={confirmed} variant="outline" style={{ flex: 1 }}>
+                -0.5
+              </Button>
+              <Button onClick={() => adjustVolume(0.5)} disabled={confirmed} variant="outline" style={{ flex: 1 }}>
+                +0.5
+              </Button>
+              <Button onClick={() => adjustVolume(1)} disabled={confirmed} variant="outline" style={{ flex: 1 }}>
+                +1
+              </Button>
+            </div>
+
+            {/* Range slider */}
+            <div>
+              <input
+                type="range"
+                min={0}
+                max={maxVal}
+                step={0.5}
+                value={volume}
+                onChange={(e) => !confirmed && setVolume(parseFloat(e.target.value))}
+                disabled={confirmed}
+                style={{ width: '100%' }}
+              />
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '0.75rem',
+                color: 'var(--color-text-secondary)',
+              }}>
+                <span>0 mL</span>
+                <span>{maxVal} mL</span>
+              </div>
+            </div>
+
+            {/* Reset */}
+            <Button onClick={handleReset} variant="outline" disabled={confirmed} style={{ width: '100%' }}>
+              Vaciar
+            </Button>
+
+            {/* Recommendation hint */}
+            <div style={{
+              padding: '10px 14px',
+              background: '#EFF6FF',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.85rem',
+              color: '#1D4ED8',
+              border: '1px solid #BFDBFE',
+            }}>
+              Se recomiendan {measurement.defaultValue || 10} mL
+            </div>
+
+            {/* Warning if outside recommended */}
+            {volume > 0 && volume !== (measurement.defaultValue || 10) && !confirmed && (
+              <div style={{
+                padding: '8px 12px',
+                background: '#FEF3C7',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.8rem',
+                color: '#92400E',
+                border: '1px solid #FDE68A',
+              }}>
+                Valor no estándar — el resultado final cambiará
+              </div>
+            )}
+
+            {/* Confirm / Continue */}
+            {confirmed ? (
+              <>
+                <div style={{
+                  padding: '10px 14px',
+                  background: '#F0FDF4',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--color-success)',
+                  fontWeight: 500,
+                  fontSize: '0.9rem',
+                  textAlign: 'center',
+                }}>
+                  Medición registrada: {volume.toFixed(1)} {measurement.unit}
+                </div>
+                <Button onClick={handleNext} variant="success" style={{ width: '100%' }}>
+                  Continuar al montaje
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={handleConfirm}
+                disabled={volume < minVal}
+                style={{ width: '100%' }}
+              >
+                Confirmar medición
+              </Button>
+            )}
           </div>
         </div>
       </div>
