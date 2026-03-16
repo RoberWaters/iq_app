@@ -550,8 +550,8 @@ export default function SequentialAssemblyBench({
 
             {/* ── P4 Step 3: Aluminum foil sheet (DRAGGABLE) ─────────── */}
             <Group
-              opacity={practiceId === 4 && currentStepIndex === 3 && !(isAnimating && isCoverAction) ? 1 : 0}
-              listening={practiceId === 4 && currentStepIndex === 3 && !isAnimating}
+              opacity={practiceId === 4 && currentStepIndex === 3 && !foilCovered && !(isAnimating && isCoverAction) ? 1 : 0}
+              listening={practiceId === 4 && currentStepIndex === 3 && !foilCovered && !isAnimating}
             >
               {/* Foil sheet — crinkled silver rectangle */}
               <Rect x={-28} y={-55} width={56} height={50}
