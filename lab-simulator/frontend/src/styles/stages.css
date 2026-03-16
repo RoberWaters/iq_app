@@ -197,7 +197,7 @@
 .assembly-layout {
   display: grid;
   grid-template-columns: 350px 1fr;
-  gap: 24px;
+  gap: 16px;
 }
 
 .assembly-steps {

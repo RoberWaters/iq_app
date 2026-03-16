@@ -1181,7 +1181,7 @@ function SequentialAssemblyView({
           {isBottleStep ? (
             <BottleBench
               width={600}
-              height={480}
+              height={400}
               currentVolume={bottleVolume}
               maxVolume={bottleCapacity}
               isFilling={bottleFilling}
@@ -1202,7 +1202,7 @@ function SequentialAssemblyView({
           ) : assemblyMode === 'reflux' ? (
             <RefluxBench
               width={500}
-              height={480}
+              height={400}
               flaskState={flaskState}
               isAnimating={isAnimating}
               currentAction={currentStep?.action || ''}
@@ -1218,7 +1218,7 @@ function SequentialAssemblyView({
           ) : (
             <SequentialAssemblyBench
               width={500}
-              height={480}
+              height={400}
               flaskState={flaskState}
               isAnimating={isAnimating}
               currentStepIndex={currentStepIndex}

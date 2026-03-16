@@ -152,7 +152,7 @@ export default function SequentialAssemblyBench({
 
   // Flask: neck mouth at (flaskX, flaskY); body bottom at flaskY + 160
   const flaskX = Math.round(width * 0.62);  // ≈ 310
-  const flaskY = 230;
+  const flaskY = benchY - 160;              // flask sits on the bench
   const flaskCY = flaskY + 80;              // visual centre of flask body
 
   // ── Multi-phase pour animation (replaces simple tilt) ───────────────────────
