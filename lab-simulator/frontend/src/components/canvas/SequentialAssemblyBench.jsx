@@ -383,8 +383,8 @@ export default function SequentialAssemblyBench({
         <PrecipitateEffect
           x={flaskX}
           y={flaskY + neckHeight}
-          width={bodyWidth * 0.82}
-          height={bodyHeight * 0.82}
+          width={bodyWidth * 0.7}
+          height={bodyHeight}
           layers={precipitateLayers}
           visible={precipitateLayers.length > 0}
         />
@@ -484,7 +484,7 @@ export default function SequentialAssemblyBench({
                 x={0} y={-200}
                 capacity={10} currentVolume={10}
                 tubeWidth={28} tubeHeight={190} baseWidth={42}
-                showGraduations={false}
+                showGraduations={true}
                 isFlowing={false}
               />
             </Group>

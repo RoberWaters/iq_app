@@ -4,8 +4,6 @@ export default function LiquidFill({
   x, y, bodyWidth, bodyHeight, neckWidth, neckHeight,
   fillLevel, color,
 }) {
-  if (fillLevel <= 0) return null;
-
   const halfBody = bodyWidth / 2;
   const halfNeck = neckWidth / 2;
   const totalHeight = neckHeight + bodyHeight;
@@ -55,7 +53,7 @@ export default function LiquidFill({
     <Line
       points={points}
       fill={color}
-      opacity={0.75}
+      opacity={fillLevel > 0 ? 0.75 : 0}
       closed
     />
   );

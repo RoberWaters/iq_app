@@ -70,6 +70,7 @@ export default function S4_Assembly() {
       setAssemblyCorrect={setAssemblyCorrect}
       setCurrentStage={setCurrentStage}
       navigate={navigate}
+      initialFlaskState={initialFlaskState}
     />
   );
 }
@@ -453,12 +454,13 @@ function SequentialAssemblyView({
   steps, assembly, assemblyMode,
   practiceId, sessionId, completedSteps, completeStep,
   setAssemblyCorrect, setCurrentStage,
-  navigate,
+  navigate, initialFlaskState,
 }) {
   const {
     currentStepIndex, currentStep, totalSteps,
     isAnimating, completed, flaskState,
     executeStep, cleanup, reset,
+    pendingAdvance, confirmAdvance,
     isDropStep, dropCount, isDropping, addDrop, finishDrops,
     refluxing, completeReflux,
   } = assembly;
@@ -466,25 +468,42 @@ function SequentialAssemblyView({
   const [showSummary, setShowSummary] = useState(false);
 
   // ── Bottle measurement state (for measure_with_bottle steps) ───────────
+  // Phase 1: hold bottle on canvas → fill cylinder
+  // Phase 2: hold cylinder on canvas → pour to flask
   const isBottleStep = currentStep?.action === 'measure_with_bottle';
   const [bottleVolume, setBottleVolume] = useState(0);
   const [bottleFilling, setBottleFilling] = useState(false);
-  const [bottleMeasured, setBottleMeasured] = useState(false);
+  const [cylinderDraining, setCylinderDraining] = useState(false);
+  const [drainStarted, setDrainStarted] = useState(false);
+  const [originalDrainVolume, setOriginalDrainVolume] = useState(0);
   const bottleInterval = useRef(null);
+  const drainInterval = useRef(null);
 
   const bottleCapacity = currentStep?.cylinderCapacity || 25;
+
+  // ── Auto-drop state (for add_indicator steps) ─────────────────────────
+  const [autoDropTarget, setAutoDropTarget] = useState('');
+  const [autoDropping, setAutoDropping] = useState(false);
+  const autoDropRef = useRef(null);
+  const autoDropCountRef = useRef(0);
+  const autoDropTargetRef = useRef(0);
   const bottleTarget = currentStep?.volume || 10;
 
+  // Fill/drain increments scale with cylinder capacity
+  const fillIncrement = bottleCapacity <= 10 ? 0.05 : bottleCapacity >= 100 ? 0.8 : 0.2;
+  const drainIncrement = bottleCapacity <= 10 ? 0.05 : bottleCapacity >= 100 ? 1.0 : 0.3;
+
+  // ── Phase 1: Fill cylinder (hold bottle on canvas) ────────────
   const startBottleFill = useCallback(() => {
-    if (bottleMeasured || bottleInterval.current) return;
+    if (drainStarted || bottleInterval.current) return;
     setBottleFilling(true);
     bottleInterval.current = setInterval(() => {
       setBottleVolume(prev => {
-        const next = prev + 0.2;
-        return next > bottleCapacity ? bottleCapacity : Math.round(next * 10) / 10;
+        const next = prev + fillIncrement;
+        return next > bottleCapacity ? bottleCapacity : Math.round(next * 100) / 100;
       });
     }, 100);
-  }, [bottleMeasured, bottleCapacity]);
+  }, [drainStarted, bottleCapacity, fillIncrement]);
 
   const stopBottleFill = useCallback(() => {
     setBottleFilling(false);
@@ -494,50 +513,80 @@ function SequentialAssemblyView({
     }
   }, []);
 
+  // ── Phase 2: Drain cylinder to flask (hold cylinder on canvas) ──
+  const minDrainThreshold = bottleCapacity <= 10 ? 0.1 : 1;
+
+  const startCylinderDrain = useCallback(() => {
+    if (bottleFilling || bottleVolume < minDrainThreshold || drainInterval.current) return;
+    if (!drainStarted) {
+      setDrainStarted(true);
+      setOriginalDrainVolume(bottleVolume);
+    }
+    setCylinderDraining(true);
+    drainInterval.current = setInterval(() => {
+      setBottleVolume(prev => {
+        const next = Math.round((prev - drainIncrement) * 100) / 100;
+        if (next <= 0) {
+          setTimeout(() => executeStep(), 50);
+          clearInterval(drainInterval.current);
+          drainInterval.current = null;
+          setCylinderDraining(false);
+          return 0;
+        }
+        return next;
+      });
+    }, 100);
+  }, [bottleFilling, bottleVolume, drainStarted, executeStep, drainIncrement, minDrainThreshold]);
+
+  const stopCylinderDrain = useCallback(() => {
+    setCylinderDraining(false);
+    if (drainInterval.current) {
+      clearInterval(drainInterval.current);
+      drainInterval.current = null;
+    }
+  }, []);
+
+  // Global release listener — stops both fill and drain
   useEffect(() => {
     if (!isBottleStep) return;
-    const handleUp = () => stopBottleFill();
+    const handleUp = () => {
+      stopBottleFill();
+      stopCylinderDrain();
+    };
     window.addEventListener('pointerup', handleUp);
     window.addEventListener('mouseup', handleUp);
     window.addEventListener('touchend', handleUp);
     return () => {
-      stopBottleFill();
+      handleUp();
       window.removeEventListener('pointerup', handleUp);
       window.removeEventListener('mouseup', handleUp);
       window.removeEventListener('touchend', handleUp);
     };
-  }, [stopBottleFill, isBottleStep]);
+  }, [stopBottleFill, stopCylinderDrain, isBottleStep]);
 
   const adjustBottle = useCallback((delta) => {
-    if (bottleMeasured || bottleFilling) return;
+    if (drainStarted || bottleFilling) return;
     const newVol = Math.max(0, Math.min(bottleCapacity, Math.round((bottleVolume + delta) * 10) / 10));
     if (newVol === bottleVolume) return;
     setBottleVolume(newVol);
     // Trigger bottle tilt animation briefly
     setBottleFilling(true);
     setTimeout(() => setBottleFilling(false), 600);
-  }, [bottleMeasured, bottleFilling, bottleVolume, bottleCapacity]);
+  }, [drainStarted, bottleFilling, bottleVolume, bottleCapacity]);
 
   const resetBottle = () => {
-    if (bottleMeasured) return;
+    if (drainStarted) return;
     setBottleVolume(0);
   };
 
-  const confirmBottleMeasurement = () => {
-    if (bottleVolume < 1) return;
-    stopBottleFill();
-    setBottleMeasured(true);
-  };
-
-  // Once bottle measurement is confirmed, trigger the pour animation to flask
-  useEffect(() => {
-    if (bottleMeasured && isBottleStep && !isAnimating) {
-      const timer = setTimeout(() => {
-        executeStep(); // triggers the pour animation in the hook
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [bottleMeasured, isBottleStep, isAnimating, executeStep]);
+  // Compute flask fill level for BottleBench
+  // Use current flaskState (evolves after each step) so fill is cumulative
+  const initialFill = flaskState?.fillLevel || 0.08;
+  const targetFill = currentStep?.visualAfter?.fillLevel || 0.14;
+  const drainFraction = drainStarted && originalDrainVolume > 0
+    ? Math.max(0, 1 - bottleVolume / originalDrainVolume)
+    : 0;
+  const computedFlaskFill = initialFill + drainFraction * (targetFill - initialFill);
 
   // Reset bottle state when step changes
   const prevStepIdx = useRef(currentStepIndex);
@@ -548,9 +597,47 @@ function SequentialAssemblyView({
     setTimeout(() => {
       setBottleVolume(0);
       setBottleFilling(false);
-      setBottleMeasured(false);
+      setCylinderDraining(false);
+      setDrainStarted(false);
+      setOriginalDrainVolume(0);
+      setAutoDropTarget('');
+      setAutoDropping(false);
+      autoDropCountRef.current = 0;
+      autoDropTargetRef.current = 0;
+      if (autoDropRef.current) clearTimeout(autoDropRef.current);
     }, 0);
   }, [currentStepIndex]);
+
+  // ── Auto-drop effect — calls addDrop repeatedly with delay ──────────
+  const startAutoDrop = useCallback(() => {
+    const target = parseInt(autoDropTarget, 10);
+    if (!target || target < 1 || target > 50) return;
+    autoDropCountRef.current = 0;
+    autoDropTargetRef.current = target;
+    setAutoDropping(true);
+  }, [autoDropTarget]);
+
+  useEffect(() => {
+    if (!autoDropping) return;
+    // Schedule next drop after current drop animation finishes
+    if (isDropping) return; // wait for current drop to finish
+
+    if (autoDropCountRef.current >= autoDropTargetRef.current) {
+      // All drops added
+      setAutoDropping(false);
+      return;
+    }
+
+    // Small delay before next drop so the animation is visible
+    autoDropRef.current = setTimeout(() => {
+      addDrop();
+      autoDropCountRef.current += 1;
+    }, 150);
+
+    return () => {
+      if (autoDropRef.current) clearTimeout(autoDropRef.current);
+    };
+  }, [autoDropping, isDropping, addDrop]);
 
   // ── Reflux timer (30 min simulated, compressed to ~10 s real time) ──────
   const REFLUX_DURATION_SIM = 30 * 60; // 30 min in seconds (simulated)
@@ -605,10 +692,16 @@ function SequentialAssemblyView({
     setRefluxElapsed(0);
     setBottleVolume(0);
     setBottleFilling(false);
-    setBottleMeasured(false);
+    setCylinderDraining(false);
+    setDrainStarted(false);
+    setOriginalDrainVolume(0);
     if (bottleInterval.current) {
       clearInterval(bottleInterval.current);
       bottleInterval.current = null;
+    }
+    if (drainInterval.current) {
+      clearInterval(drainInterval.current);
+      drainInterval.current = null;
     }
     reset();
     setShowSummary(false);
@@ -715,7 +808,7 @@ function SequentialAssemblyView({
                 {/* Button-only actions (condenser/cool steps — no drag equivalent) */}
                 {(
                   ['attach_condenser', 'cool'].includes(currentStep.action)
-                ) && (
+                ) && !pendingAdvance && (
                   <Button
                     onClick={handleExecuteStep}
                     disabled={isAnimating}
@@ -726,7 +819,7 @@ function SequentialAssemblyView({
                 )}
 
                 {/* Reflux step — timer-driven with fast-forward */}
-                {currentStep.action === 'reflux' && (
+                {currentStep.action === 'reflux' && !pendingAdvance && (
                   <div>
                     {!refluxing && !refluxDone && (
                       <Button
@@ -823,8 +916,8 @@ function SequentialAssemblyView({
                   </div>
                 )}
 
-                {/* Drop-based steps (add_indicator) — click to add drops */}
-                {currentStep.action === 'add_indicator' && (
+                {/* Drop-based steps (add_indicator) — click or auto-drop */}
+                {currentStep.action === 'add_indicator' && !pendingAdvance && (
                   <div>
                     <div className="drop-counter" style={{ marginBottom: '8px' }}>
                       <span>Gotas:</span>
@@ -835,6 +928,11 @@ function SequentialAssemblyView({
                         color: 'var(--color-primary)',
                       }}>
                         {dropCount}
+                        {autoDropping && (
+                          <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#6B7280', marginLeft: 6 }}>
+                            / {autoDropTargetRef.current}
+                          </span>
+                        )}
                       </span>
                     </div>
 
@@ -847,14 +945,53 @@ function SequentialAssemblyView({
                       color: '#1D4ED8',
                       marginBottom: '12px',
                     }}>
-                      {isDropping
-                        ? 'Agregando gota...'
-                        : 'Haz clic sobre el frasco de indicador en el canvas'}
+                      {autoDropping
+                        ? `Agregando gotas automáticamente... (${dropCount}/${autoDropTargetRef.current})`
+                        : isDropping
+                          ? 'Agregando gota...'
+                          : 'Haz clic sobre el frasco de indicador en el canvas o usa el gotero automático'}
+                    </div>
+
+                    {/* Auto-drop input */}
+                    <div style={{
+                      display: 'flex', gap: '8px', alignItems: 'center',
+                      marginBottom: '12px',
+                      padding: '10px 12px',
+                      background: '#FFFBEB',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid #FDE68A',
+                    }}>
+                      <label style={{ fontSize: '0.85rem', color: '#92400E', whiteSpace: 'nowrap' }}>
+                        Gotero automático:
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={autoDropTarget}
+                        onChange={(e) => setAutoDropTarget(e.target.value)}
+                        disabled={autoDropping || isDropping}
+                        placeholder="N°"
+                        style={{
+                          width: '60px', padding: '4px 8px',
+                          border: '1px solid #D1D5DB', borderRadius: '6px',
+                          fontFamily: 'var(--font-mono)', fontSize: '0.9rem',
+                          textAlign: 'center',
+                        }}
+                      />
+                      <Button
+                        onClick={startAutoDrop}
+                        disabled={autoDropping || isDropping || !autoDropTarget || parseInt(autoDropTarget, 10) < 1}
+                        variant="primary"
+                        style={{ fontSize: '0.8rem', padding: '4px 12px' }}
+                      >
+                        Agregar
+                      </Button>
                     </div>
 
                     <Button
                       onClick={finishDrops}
-                      disabled={dropCount < 1 || isDropping}
+                      disabled={dropCount < 1 || isDropping || autoDropping}
                       variant="success"
                       style={{ width: '100%' }}
                     >
@@ -863,8 +1000,8 @@ function SequentialAssemblyView({
                   </div>
                 )}
 
-                {/* Bottle measurement step — interactive fill controls */}
-                {currentStep.action === 'measure_with_bottle' && !bottleMeasured && (
+                {/* Bottle measurement step — canvas-driven interactions */}
+                {currentStep.action === 'measure_with_bottle' && !drainStarted && !pendingAdvance && (
                   <div>
                     {/* Volume readout */}
                     <div style={{
@@ -875,29 +1012,35 @@ function SequentialAssemblyView({
                       textAlign: 'center',
                       marginBottom: '8px',
                     }}>
-                      {bottleVolume.toFixed(1)} mL
+                      {bottleCapacity <= 10 ? bottleVolume.toFixed(2) : bottleVolume.toFixed(1)} mL
                     </div>
-
-                    <Button
-                      onPointerDown={startBottleFill}
-                      onPointerUp={stopBottleFill}
-                      onPointerLeave={stopBottleFill}
-                      onPointerCancel={stopBottleFill}
-                      variant="primary"
-                      style={{ width: '100%', touchAction: 'none', marginBottom: '8px' }}
-                      className="fill-button"
-                    >
-                      Verter agua destilada (mantener)
-                    </Button>
 
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                      <Button onClick={() => adjustBottle(-1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 1}>-1</Button>
-                      <Button onClick={() => adjustBottle(-0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 0.5}>-0.5</Button>
-                      <Button onClick={() => adjustBottle(0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume >= bottleCapacity}>+0.5</Button>
-                      <Button onClick={() => adjustBottle(1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume > bottleCapacity - 1}>+1</Button>
+                      {bottleCapacity <= 10 ? (
+                        <>
+                          <Button onClick={() => adjustBottle(-0.2)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 0.2}>-0.2</Button>
+                          <Button onClick={() => adjustBottle(-0.1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 0.1}>-0.1</Button>
+                          <Button onClick={() => adjustBottle(0.1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume >= bottleCapacity}>+0.1</Button>
+                          <Button onClick={() => adjustBottle(0.2)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume > bottleCapacity - 0.2}>+0.2</Button>
+                        </>
+                      ) : bottleCapacity >= 100 ? (
+                        <>
+                          <Button onClick={() => adjustBottle(-5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 5}>-5</Button>
+                          <Button onClick={() => adjustBottle(-1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 1}>-1</Button>
+                          <Button onClick={() => adjustBottle(1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume >= bottleCapacity}>+1</Button>
+                          <Button onClick={() => adjustBottle(5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume > bottleCapacity - 5}>+5</Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button onClick={() => adjustBottle(-1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 1}>-1</Button>
+                          <Button onClick={() => adjustBottle(-0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 0.5}>-0.5</Button>
+                          <Button onClick={() => adjustBottle(0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume >= bottleCapacity}>+0.5</Button>
+                          <Button onClick={() => adjustBottle(1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume > bottleCapacity - 1}>+1</Button>
+                        </>
+                      )}
                     </div>
 
-                    <Button onClick={resetBottle} variant="outline" style={{ width: '100%', marginBottom: '8px' }}>
+                    <Button onClick={resetBottle} variant="outline" style={{ width: '100%', marginBottom: '8px' }} disabled={bottleFilling || bottleVolume < 0.1}>
                       Vaciar probeta
                     </Button>
 
@@ -913,32 +1056,53 @@ function SequentialAssemblyView({
                       Se recomiendan {bottleTarget} mL
                     </div>
 
-                    <Button
-                      onClick={confirmBottleMeasurement}
-                      disabled={bottleVolume < 1}
-                      style={{ width: '100%' }}
-                    >
-                      Confirmar y verter al matraz
-                    </Button>
+                    <div style={{
+                      padding: '10px 14px',
+                      background: '#EFF6FF',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid #BFDBFE',
+                      fontSize: '0.85rem',
+                      color: '#1D4ED8',
+                    }}>
+                      {bottleVolume < minDrainThreshold
+                        ? `Mantén presionado el frasco en el canvas para llenar la probeta →`
+                        : 'Mantén presionada la probeta en el canvas para verter al matraz →'
+                      }
+                    </div>
                   </div>
                 )}
 
-                {/* Bottle measurement confirmed — pouring to flask */}
-                {currentStep.action === 'measure_with_bottle' && bottleMeasured && (
-                  <div style={{
-                    padding: '10px 14px',
-                    background: '#EFF6FF',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid #BFDBFE',
-                    fontSize: '0.85rem',
-                    color: '#1D4ED8',
-                  }}>
-                    {isAnimating ? getAnimatingLabel(currentStep.action) : 'Vertiendo al matraz...'}
+                {/* Draining cylinder to flask */}
+                {currentStep.action === 'measure_with_bottle' && drainStarted && !pendingAdvance && (
+                  <div>
+                    <div style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '1.8rem',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      textAlign: 'center',
+                      marginBottom: '8px',
+                    }}>
+                      {bottleCapacity <= 10 ? bottleVolume.toFixed(2) : bottleVolume.toFixed(1)} mL
+                    </div>
+                    <div style={{
+                      padding: '10px 14px',
+                      background: '#EFF6FF',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid #BFDBFE',
+                      fontSize: '0.85rem',
+                      color: '#1D4ED8',
+                    }}>
+                      {bottleVolume > 0
+                        ? 'Mantén presionada la probeta para verter al matraz →'
+                        : 'Vertido completo'
+                      }
+                    </div>
                   </div>
                 )}
 
                 {/* Drag-based steps — hint directs to canvas */}
-                {!['attach_condenser', 'cool', 'reflux', 'add_indicator', 'measure_with_bottle'].includes(currentStep.action) && (
+                {!['attach_condenser', 'cool', 'reflux', 'add_indicator', 'measure_with_bottle'].includes(currentStep.action) && !pendingAdvance && (
                   <div style={{
                     padding: '10px 14px',
                     background: '#EFF6FF',
@@ -950,6 +1114,35 @@ function SequentialAssemblyView({
                     {isAnimating
                       ? getAnimatingLabel(currentStep.action)
                       : 'Arrastra el reactivo hacia el matraz en el canvas →'}
+                  </div>
+                )}
+
+                {/* "Continuar" button — appears after any step completes */}
+                {pendingAdvance && (
+                  <div style={{ marginTop: '12px' }}>
+                    <div style={{
+                      padding: '10px 14px',
+                      background: '#F0FDF4',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid #BBF7D0',
+                      fontSize: '0.85rem',
+                      color: '#166534',
+                      marginBottom: '10px',
+                    }}>
+                      ✓ Paso completado
+                      {currentStepIndex + 1 < totalSteps && (
+                        <div style={{ marginTop: '6px', fontSize: '0.8rem', color: '#4B5563' }}>
+                          Siguiente: {steps[currentStepIndex + 1]?.description}
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      onClick={confirmAdvance}
+                      variant="primary"
+                      style={{ width: '100%' }}
+                    >
+                      Continuar
+                    </Button>
                   </div>
                 )}
               </div>
@@ -985,15 +1178,26 @@ function SequentialAssemblyView({
 
         {/* Right: Canvas — bottle measurement, reflux, or drag assembly */}
         <div className="titration-canvas-wrapper">
-          {isBottleStep && !bottleMeasured ? (
+          {isBottleStep ? (
             <BottleBench
-              width={500}
+              width={600}
               height={480}
               currentVolume={bottleVolume}
               maxVolume={bottleCapacity}
               isFilling={bottleFilling}
-              liquidColor="#B8D8E8"
+              liquidColor={currentStep?.liquidColor || '#B8D8E8'}
               sampleName={currentStep?.bottleLabel || 'Agua\nDestilada'}
+              showFlask={true}
+              flaskFillLevel={computedFlaskFill}
+              flaskLiquidColor={currentStep?.visualAfter?.containerColor || '#DCE8F5'}
+              isDraining={cylinderDraining}
+              onBottlePress={startBottleFill}
+              onCylinderPress={startCylinderDrain}
+              bottleStyle={currentStep?.bottleStyle || 'clear'}
+              precipitate={currentStep?.visualAfter?.precipitate || null}
+              precipitateProgress={drainFraction}
+              existingPrecipitate={flaskState?.precipitate || null}
+              foilCovered={flaskState?.foilCovered || false}
             />
           ) : assemblyMode === 'reflux' ? (
             <RefluxBench

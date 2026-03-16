@@ -74,8 +74,8 @@ export default function LabBench({ width = 500, height = 600 }) {
           <PrecipitateEffect
             x={erlenmeyerX}
             y={erlenmeyerY + neckHeight}
-            width={bodyWidth * 0.8}
-            height={bodyHeight * 0.8}
+            width={bodyWidth * 0.7}
+            height={bodyHeight}
             layers={precipitateLayers}
             visible={hasPrecipitate}
           />

@@ -20,12 +20,6 @@ export default function Erlenmeyer({ x, y, liquidColor, fillLevel = 0.4 }) {
     x + halfNeck, y,                       // top-right of neck
   ];
 
-  // Liquid shape (fills bottom part of flask)
-  const liquidTop = y + neckHeight + bodyHeight * (1 - fillLevel);
-  const liquidProgress = fillLevel;
-  const liquidWidthAtTop = neckWidth + (bodyWidth - neckWidth) * Math.min(1, (liquidTop - y - neckHeight) / bodyHeight > 0 ? 1 - (liquidTop - y - neckHeight) / bodyHeight : 1);
-  const halfLiquid = Math.min(halfBody, halfNeck + (halfBody - halfNeck) * Math.min(1, (y + neckHeight + bodyHeight - liquidTop) / bodyHeight));
-
   return (
     <Group>
       {/* Flask body outline */}

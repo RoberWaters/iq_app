@@ -38,6 +38,7 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [pendingAdvance, setPendingAdvance] = useState(false); // step done, waiting for user to click "Continuar"
 
   // Drop mode state for add_indicator steps
   const [dropCount, setDropCount] = useState(0);
@@ -100,6 +101,27 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
   // Whether the current step is a drop-mode indicator step
   const isDropStep = currentStep?.action === 'add_indicator';
 
+  // Helper: instead of auto-advancing, set pendingAdvance so user clicks "Continuar"
+  const markPending = useCallback((nextIndex) => {
+    if (nextIndex >= totalSteps) {
+      setCompleted(true);
+    } else {
+      setPendingAdvance(true);
+    }
+  }, [totalSteps]);
+
+  // User clicks "Continuar" to actually advance to the next step
+  const confirmAdvance = useCallback(() => {
+    if (!pendingAdvance) return;
+    setPendingAdvance(false);
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex >= totalSteps) {
+      setCompleted(true);
+    } else {
+      setCurrentStepIndex(nextIndex);
+    }
+  }, [pendingAdvance, currentStepIndex, totalSteps]);
+
   const executeStep = useCallback(() => {
     if (isAnimating || currentStepIndex >= totalSteps) return;
 
@@ -109,11 +131,15 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     // add_indicator is handled by addDrop/finishDrops — skip if called directly
     if (step.action === 'add_indicator') return;
 
-    // measure_with_bottle is a two-phase step: bottle measurement (UI-driven)
-    // then pour animation (same as add_reagent). The UI calls executeStep()
-    // only after bottle measurement is confirmed.
-
     const visualAfter = step.visualAfter;
+
+    // measure_with_bottle: visual pour already handled by BottleBench canvas.
+    // Just apply the final state and wait for user to click "Continuar".
+    if (step.action === 'measure_with_bottle') {
+      applyVisualAfter(visualAfter);
+      markPending(currentStepIndex + 1);
+      return;
+    }
     const action = step.action;
 
     // Instant-ish actions (no pour animation): cover, attach_condenser, cool
@@ -127,12 +153,7 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
       animTimeout.current = setTimeout(() => {
         applyVisualAfter(visualAfter);
         setIsAnimating(false);
-        const nextIndex = currentStepIndex + 1;
-        if (nextIndex >= totalSteps) {
-          setCompleted(true);
-        } else {
-          setCurrentStepIndex(nextIndex);
-        }
+        markPending(currentStepIndex + 1);
       }, instantActions[action]);
       return;
     }
@@ -151,19 +172,14 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
 
     animateFillTo(targetFill, visualAfter?.containerColor, visualAfter, duration);
 
-    // After animation, advance step
+    // After animation, wait for user to click "Continuar"
     const advanceDelay = duration + 100;
     animTimeout.current = setTimeout(() => {
-      const nextIndex = currentStepIndex + 1;
-      if (nextIndex >= totalSteps) {
-        setCompleted(true);
-      } else {
-        setCurrentStepIndex(nextIndex);
-      }
+      markPending(currentStepIndex + 1);
     }, advanceDelay);
-  }, [isAnimating, currentStepIndex, totalSteps, assemblySteps, flaskState.fillLevel, applyVisualAfter, animateFillTo]);
+  }, [isAnimating, currentStepIndex, totalSteps, assemblySteps, flaskState.fillLevel, applyVisualAfter, animateFillTo, markPending]);
 
-  // Complete the reflux step: apply visualAfter, stop refluxing, advance.
+  // Complete the reflux step: apply visualAfter, stop refluxing, wait for "Continuar".
   const completeReflux = useCallback(() => {
     if (!refluxing) return;
 
@@ -174,13 +190,8 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     setRefluxing(false);
     setIsAnimating(false);
 
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex >= totalSteps) {
-      setCompleted(true);
-    } else {
-      setCurrentStepIndex(nextIndex);
-    }
-  }, [refluxing, currentStepIndex, totalSteps, assemblySteps, applyVisualAfter]);
+    markPending(currentStepIndex + 1);
+  }, [refluxing, currentStepIndex, assemblySteps, applyVisualAfter, markPending]);
 
   // Add a single drop (for add_indicator steps).
   // Triggers a brief isDropping flag (400 ms) used by the canvas for the drop animation.
@@ -196,7 +207,7 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     }, 400);
   }, [isAnimating, isDropping, isDropStep]);
 
-  // Finish the drop step: apply visualAfter and advance to next step.
+  // Finish the drop step: apply visualAfter and wait for "Continuar".
   const finishDrops = useCallback(() => {
     if (isDropping || !isDropStep || dropCount < 1) return;
 
@@ -206,13 +217,8 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     applyVisualAfter(step.visualAfter);
     setDropCount(0);
 
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex >= totalSteps) {
-      setCompleted(true);
-    } else {
-      setCurrentStepIndex(nextIndex);
-    }
-  }, [isDropping, isDropStep, dropCount, currentStepIndex, totalSteps, assemblySteps, applyVisualAfter]);
+    markPending(currentStepIndex + 1);
+  }, [isDropping, isDropStep, dropCount, currentStepIndex, assemblySteps, applyVisualAfter, markPending]);
 
   const cleanup = useCallback(() => {
     if (animTimeout.current) clearTimeout(animTimeout.current);
@@ -227,6 +233,7 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     setCurrentStepIndex(0);
     setIsAnimating(false);
     setCompleted(false);
+    setPendingAdvance(false);
     setDropCount(0);
     setIsDropping(false);
     setRefluxing(false);
@@ -243,6 +250,9 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
     executeStep,
     cleanup,
     reset,
+    // Step advancement control
+    pendingAdvance,
+    confirmAdvance,
     // Drop mode (add_indicator steps)
     isDropStep,
     dropCount,

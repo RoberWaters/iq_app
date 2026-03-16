@@ -206,7 +206,7 @@ export default function AssemblyBench({
                 x={0} y={-LARGE_TUBE_H}
                 capacity={maxCylinderVolume}
                 currentVolume={cylinderVolume}
-                showGraduations={false}
+                showGraduations={true}
               />
             </Group>
 
@@ -285,7 +285,7 @@ export default function AssemblyBench({
                 capacity={10}
                 currentVolume={Math.min(bufferBeakerVolume, 10)}
                 tubeWidth={20} tubeHeight={160} baseWidth={32}
-                showGraduations={false}
+                showGraduations={true}
               />
             </Group>
 

@@ -1,39 +1,117 @@
 import { useState, useEffect, useRef } from 'react';
 import { Stage, Layer, Group, Rect, Line, Text, Circle } from 'react-konva';
 import GraduatedCylinder from './GraduatedCylinder';
+import Erlenmeyer from './Erlenmeyer';
+import PrecipitateEffect from './PrecipitateEffect';
 import PourAnimation from './PourAnimation';
+import FoilCover from './FoilCover';
 
 /**
- * Interactive bottle-to-graduated-cylinder measurement canvas.
+ * Interactive bottle-to-graduated-cylinder-to-flask measurement canvas.
  *
- * The bottle tilts (pivoting at its base) so its lip aligns with
- * the graduated cylinder's pour spout. Uses PourAnimation for the
- * stream — same pattern as AssemblyBench step 2.
+ * Phase 1: Hold the BOTTLE to pour water into the graduated cylinder.
+ * Phase 2: Hold the CYLINDER to pour water into the Erlenmeyer flask.
+ *
+ * Both interactions are press-and-hold on the canvas objects.
+ * Tilt animations ramp smoothly via requestAnimationFrame.
+ *
+ * react-konva rules enforced:
+ *   - No conditional rendering inside Layer — opacity toggle only.
+ *   - setState deferred in Konva event handlers via setTimeout(fn, 0).
+ *   - getStage() wrapped in try-catch.
+ *   - Hit areas use "rgba(0,0,0,0.001)" fill.
  */
+
+function setCursor(e, cursor) {
+  try {
+    const stage = e.target?.getStage?.();
+    if (stage) stage.container().style.cursor = cursor;
+  } catch { /* ignore */ }
+}
+
 export default function BottleBench({
-  width = 500,
+  width = 600,
   height = 480,
   currentVolume = 0,
   maxVolume = 25,
   isFilling = false,
   liquidColor = '#DCE8F5',
   sampleName = 'Agua\nDestilada',
+  // Flask props
+  showFlask = false,
+  flaskFillLevel = 0.08,
+  flaskLiquidColor = '#DCE8F5',
+  // Drain (cylinder → flask) props
+  isDraining = false,
+  // Canvas interaction callbacks
+  onBottlePress = null,
+  onCylinderPress = null,
+  // Bottle appearance
+  bottleStyle = 'clear',
+  // Precipitate (grows during drain for current step)
+  precipitate = null,
+  precipitateProgress = 0,
+  // Existing precipitate from previous steps (always visible)
+  existingPrecipitate = null,
+  // Foil cover
+  foilCovered = false,
 }) {
-  // ── Tilt + animation loop ────────────────────────────────────────────
+  // ── Bottle style (clear vs amber) ────────────────────────────
+  const isAmber = bottleStyle === 'amber';
+  const bottleGlass = isAmber ? '#8B5E3C' : '#F0F4F8';
+  const bottleStroke = isAmber ? '#6B3A1F' : '#94A3B8';
+  const bottleHighlight = isAmber ? '#C4875A' : 'white';
+  const bottleHighlightOp = isAmber ? 0.25 : 0.3;
+  const bottleCapFill = isAmber ? '#B22222' : '#1E40AF';
+  const bottleCapStrokeFill = isAmber ? '#8B1A1A' : '#1E3A8A';
+  const bottleLiquidOp = isAmber ? 0.25 : 0.55;
+  const bottleNeckLiquidOp = isAmber ? 0.2 : 0.4;
+  // ── Layout (shifts left when flask is visible) ─────────────────
+  const benchY = height - 20;
+
+  const bottleStandX = showFlask ? 88 : 120;
+  const cylX = showFlask ? 235 : 320;
+  const flaskCenterX = 420;
+
+  const cylTubeW = maxVolume <= 10 ? 28 : maxVolume >= 100 ? 44 : 36;
+  const cylTubeH = showFlask ? 210 : 240;
+  const cylBaseH = 10;
+  const cylY = benchY - cylTubeH - cylBaseH;
+  const cylSpoutY = cylY;
+
+  // ── Bottle geometry (dropper bottle when amber) ───────────────
+  const bottleBodyW = isAmber ? 34 : 50;
+  const bottleBodyH = isAmber ? 70 : 130;
+  const bottleNeckW = isAmber ? 10 : 18;
+  const bottleNeckH = isAmber ? 14 : 34;
+  const bottleCapH = isAmber ? 0 : 10;
+  const bottleBulbH = 20; // rubber dropper bulb height (amber only)
+  const bottleTopH = isAmber ? bottleBulbH : bottleCapH;
+  const bottleTotalH = bottleBodyH + bottleNeckH + bottleTopH;
+
+  const bottleBaseY = benchY - 4;
+  const bottleBodyTop = bottleBaseY - bottleBodyH;
+  const bottleNeckTop = bottleBodyTop - bottleNeckH;
+  const bottleLiquidTop = bottleBodyTop + (isAmber ? 10 : 16);
+  const bottleLiquidH = bottleBaseY - bottleLiquidTop - 4;
+
+  // ── Flask geometry (matches Erlenmeyer component defaults) ────
+  const flaskTotalH = 160; // 120 body + 40 neck
+  const flaskMouthY = benchY - flaskTotalH;
+
+  // ── Bottle tilt animation (bottle → cylinder) ─────────────────
   const [tiltProgress, setTiltProgress] = useState(0);
   const [animTime, setAnimTime] = useState(0);
   const tiltRef = useRef(0);
   const rafRef = useRef(null);
-  const directionRef = useRef('idle'); // 'up', 'down', 'idle'
+  const directionRef = useRef('idle');
 
   useEffect(() => {
     let lastTs = null;
     let running = true;
+    const RAMP_UP_MS = 800;
+    const RAMP_DOWN_MS = 700;
 
-    const RAMP_UP_MS = 800;   // time to go from bench to pouring position
-    const RAMP_DOWN_MS = 700; // time to return from pouring position to bench
-
-    const target = isFilling ? 1 : 0;
     directionRef.current = isFilling ? 'up' : 'down';
 
     const frame = (ts) => {
@@ -50,13 +128,11 @@ export default function BottleBench({
         tiltRef.current = Math.max(0, current - dt / RAMP_DOWN_MS);
       }
 
-      // Apply easeInOut for smooth acceleration/deceleration
       const t = tiltRef.current;
       const eased = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
       setTiltProgress(eased);
       setAnimTime(ts * 0.001);
 
-      // Keep animating while not at rest
       if ((dir === 'up' && tiltRef.current < 1) || (dir === 'down' && tiltRef.current > 0)) {
         rafRef.current = requestAnimationFrame(frame);
       } else {
@@ -64,12 +140,11 @@ export default function BottleBench({
       }
     };
 
-    // Only start a new loop if not already running toward the right target
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    const target = isFilling ? 1 : 0;
     if (tiltRef.current !== target) {
       rafRef.current = requestAnimationFrame(frame);
     } else if (isFilling) {
-      // Already at 1, keep updating animTime for pour stream
       const pourFrame = (ts) => {
         if (!running) return;
         setAnimTime(ts * 0.001);
@@ -84,57 +159,99 @@ export default function BottleBench({
     };
   }, [isFilling]);
 
-  // ── Layout ──────────────────────────────────────────────────────────────
-  const benchY = height - 20;
+  // ── Cylinder tilt animation (cylinder → flask) ────────────────
+  const [cylTiltProgress, setCylTiltProgress] = useState(0);
+  const cylTiltRef = useRef(0);
+  const cylRafRef = useRef(null);
+  const cylDirRef = useRef('idle');
 
-  // Graduated cylinder (right side, sits on bench)
-  const cylTubeW = 36;
-  const cylTubeH = 240;
-  const cylBaseH = 10;
-  const cylX = 320;
-  const cylY = benchY - cylTubeH - cylBaseH;
+  useEffect(() => {
+    let lastTs = null;
+    let running = true;
+    const RAMP_UP_MS = 600;
+    const RAMP_DOWN_MS = 500;
 
-  // Cylinder spout position (top edge)
-  const cylSpoutY = cylY;
+    cylDirRef.current = isDraining ? 'up' : 'down';
 
-  // ── Bottle geometry ─────────────────────────────────────────────────────
-  const bottleBodyW = 50;
-  const bottleBodyH = 130;
-  const bottleNeckW = 18;
-  const bottleNeckH = 34;
-  const bottleCapH = 10;
-  const bottleTotalH = bottleBodyH + bottleNeckH + bottleCapH;
+    const frame = (ts) => {
+      if (!running) return;
+      const dt = lastTs !== null ? Math.min(ts - lastTs, 50) : 0;
+      lastTs = ts;
 
-  // Upright position: bottle stands on bench to the left
-  const bottleStandX = 120;
-  const bottleBaseY = benchY - 4;
-  const bottleBodyTop = bottleBaseY - bottleBodyH;
-  const bottleNeckTop = bottleBodyTop - bottleNeckH;
+      const current = cylTiltRef.current;
+      const dir = cylDirRef.current;
 
-  // Tilt: pivot at base, rotate CW. Same pattern as AssemblyBench.
-  // The bottle lifts and slides right so its lip lands at the cylinder spout.
+      if (dir === 'up' && current < 1) {
+        cylTiltRef.current = Math.min(1, current + dt / RAMP_UP_MS);
+      } else if (dir === 'down' && current > 0) {
+        cylTiltRef.current = Math.max(0, current - dt / RAMP_DOWN_MS);
+      }
+
+      const t = cylTiltRef.current;
+      const eased = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+      setCylTiltProgress(eased);
+      setAnimTime(ts * 0.001);
+
+      if ((dir === 'up' && cylTiltRef.current < 1) || (dir === 'down' && cylTiltRef.current > 0)) {
+        cylRafRef.current = requestAnimationFrame(frame);
+      } else {
+        cylRafRef.current = null;
+      }
+    };
+
+    if (cylRafRef.current) cancelAnimationFrame(cylRafRef.current);
+    const target = isDraining ? 1 : 0;
+    if (cylTiltRef.current !== target) {
+      cylRafRef.current = requestAnimationFrame(frame);
+    } else if (isDraining) {
+      const holdFrame = (ts) => {
+        if (!running) return;
+        setAnimTime(ts * 0.001);
+        cylRafRef.current = requestAnimationFrame(holdFrame);
+      };
+      cylRafRef.current = requestAnimationFrame(holdFrame);
+    }
+
+    return () => {
+      running = false;
+      if (cylRafRef.current) cancelAnimationFrame(cylRafRef.current);
+    };
+  }, [isDraining]);
+
+  // ── Derived values ─────────────────────────────────────────────
+
+  // Bottle tilt (bottle → cylinder)
   const tiltDeg = tiltProgress * 50;
   const tiltRad = tiltDeg * Math.PI / 180;
 
-  // Target: bottle spout must end up just left of cylinder spout (cylX, cylY)
-  // spoutX = pivotX + H·sin(θ) → pivotX = targetX - H·sin(θ)
-  // spoutY = pivotY - H·cos(θ) → pivotY = targetY + H·cos(θ)
-  const targetSpoutX = cylX - cylTubeW / 2 - 5; // just left of cylinder spout
+  const targetSpoutX = cylX - cylTubeW / 2 - 5;
   const targetSpoutY = cylSpoutY;
   const targetPivotX = targetSpoutX - bottleTotalH * Math.sin(tiltRad);
   const targetPivotY = targetSpoutY + bottleTotalH * Math.cos(tiltRad);
 
-  // Interpolate pivot from standing position to target position
   const bottlePivotX = bottleStandX + tiltProgress * (targetPivotX - bottleStandX);
   const bottlePivotY = bottleBaseY + tiltProgress * (targetPivotY - bottleBaseY);
 
-  // Bottle lip in world coords (should match target when tiltProgress=1)
   const bottleSpoutX = bottlePivotX + bottleTotalH * Math.sin(tiltRad);
   const bottleSpoutY = bottlePivotY - bottleTotalH * Math.cos(tiltRad);
 
-  // Bottle liquid fill (doesn't visibly deplete — big bottle)
-  const bottleLiquidTop = bottleBodyTop + 16;
-  const bottleLiquidH = bottleBaseY - bottleLiquidTop - 4;
+  // Cylinder tilt for pour-to-flask (43° so spout reaches flask mouth)
+  const cylTiltDeg = cylTiltProgress * 43;
+  const cylTiltRad = cylTiltDeg * Math.PI / 180;
+  const cylTotalH = cylTubeH + cylBaseH;
+
+  // Cylinder spout world position when tilted
+  const cylSpoutWorldX = cylX + cylTotalH * Math.sin(cylTiltRad);
+  const cylSpoutWorldY = benchY - cylTotalH * Math.cos(cylTiltRad);
+
+  // Pour streams
+  const bottlePourActive = tiltProgress > 0.55 && isFilling;
+  const cylPourActive = isDraining && cylTiltProgress > 0.5 && currentVolume > 0;
+
+  // Bottle interactive (not while filling or draining)
+  const bottleListening = !isDraining && cylTiltProgress < 0.01;
+  // Cylinder interactive (has volume and not currently filling from bottle)
+  const cylinderListening = currentVolume > 0 || isDraining;
 
   return (
     <Stage width={width} height={height}>
@@ -145,18 +262,92 @@ export default function BottleBench({
           fill="#E2E8F0" cornerRadius={[4, 4, 0, 0]}
         />
 
-        {/* ── BOTTLE (upright, hidden while tilting) ────────────────────── */}
-        <Group opacity={tiltProgress > 0.01 ? 0 : 1}>
+        {/* ── FLASK (Erlenmeyer component, always rendered) ───── */}
+        <Group opacity={showFlask ? 1 : 0}>
+          <Erlenmeyer
+            x={flaskCenterX}
+            y={flaskMouthY}
+            fillLevel={flaskFillLevel}
+            liquidColor={flaskLiquidColor}
+          />
+
+          {/* Precipitate mound — existing from previous steps + growing from current drain */}
+          <PrecipitateEffect
+            x={flaskCenterX}
+            y={flaskMouthY + 40}
+            width={140 * 0.7}
+            height={120}
+            layers={[
+              // Existing precipitate from previous steps (always at full values)
+              ...(existingPrecipitate ? [{
+                type: existingPrecipitate.type || 'granular',
+                color: existingPrecipitate.color || '#FFFFFF',
+                opacity: existingPrecipitate.opacity || 0.8,
+                density: existingPrecipitate.density || 0.65,
+              }] : []),
+              // New precipitate growing during current drain
+              ...(precipitate && precipitateProgress > 0 ? [{
+                type: precipitate.type || 'granular',
+                color: precipitate.color || '#FFFFFF',
+                opacity: (precipitate.opacity || 0.8) * Math.min(1, precipitateProgress),
+                density: (0.65) * Math.min(1, precipitateProgress),
+              }] : []),
+            ]}
+            visible={existingPrecipitate != null || (precipitate != null && precipitateProgress > 0)}
+          />
+
+          {/* Aluminum foil cover (always rendered, opacity-toggled) */}
+          <FoilCover
+            x={flaskCenterX}
+            y={flaskMouthY}
+            visible={foilCovered}
+          />
+
+          {/* Flask label */}
+          <Text
+            x={flaskCenterX - 50}
+            y={benchY + 3}
+            width={100}
+            text="Matraz 100 mL"
+            fontSize={10}
+            fill="#64748B"
+            fontFamily="IBM Plex Sans"
+            align="center"
+          />
+
+          {/* Flask content label */}
+          <Text
+            x={flaskCenterX - 35}
+            y={benchY - 25}
+            width={70}
+            text="10 mL\nmuestra"
+            fontSize={9}
+            fill="#64748B"
+            fontFamily="IBM Plex Sans"
+            align="center"
+            opacity={0.7}
+            lineHeight={1.2}
+          />
+        </Group>
+
+        {/* ── BOTTLE (upright, hidden while tilting) ─────────────── */}
+        <Group
+          opacity={tiltProgress > 0.01 ? 0 : 1}
+          listening={bottleListening}
+          onPointerDown={() => setTimeout(() => onBottlePress?.(), 0)}
+          onMouseEnter={(e) => setCursor(e, 'grab')}
+          onMouseLeave={(e) => setCursor(e, 'default')}
+        >
           {/* Body */}
           <Rect
             x={bottleStandX - bottleBodyW / 2}
             y={bottleBodyTop}
             width={bottleBodyW}
             height={bottleBodyH}
-            fill="#F0F4F8"
-            stroke="#94A3B8"
+            fill={bottleGlass}
+            stroke={bottleStroke}
             strokeWidth={1.2}
-            cornerRadius={[2, 2, 4, 4]}
+            cornerRadius={isAmber ? [2, 2, 6, 6] : [2, 2, 4, 4]}
           />
 
           {/* Liquid inside */}
@@ -166,7 +357,7 @@ export default function BottleBench({
             width={bottleBodyW - 6}
             height={bottleLiquidH}
             fill={liquidColor}
-            opacity={0.55}
+            opacity={bottleLiquidOp}
             cornerRadius={[0, 0, 3, 3]}
           />
 
@@ -176,40 +367,40 @@ export default function BottleBench({
               bottleStandX - bottleBodyW / 2 + 3, bottleLiquidTop,
               bottleStandX + bottleBodyW / 2 - 3, bottleLiquidTop,
             ]}
-            stroke="#8EAAB8" strokeWidth={0.8} opacity={0.4}
+            stroke={isAmber ? '#6B3A1F' : '#8EAAB8'} strokeWidth={0.8} opacity={0.4}
           />
 
           {/* Glass highlights */}
           <Rect
-            x={bottleStandX - bottleBodyW / 2 + 5}
-            y={bottleBodyTop + 10}
-            width={4} height={bottleBodyH - 20}
-            fill="white" opacity={0.3} cornerRadius={2}
+            x={bottleStandX - bottleBodyW / 2 + 4}
+            y={bottleBodyTop + 8}
+            width={isAmber ? 3 : 4} height={bottleBodyH - 16}
+            fill={bottleHighlight} opacity={bottleHighlightOp} cornerRadius={2}
           />
           <Rect
-            x={bottleStandX + bottleBodyW / 2 - 10}
-            y={bottleBodyTop + 15}
-            width={2} height={bottleBodyH - 30}
-            fill="white" opacity={0.15} cornerRadius={1}
+            x={bottleStandX + bottleBodyW / 2 - (isAmber ? 8 : 10)}
+            y={bottleBodyTop + 12}
+            width={2} height={bottleBodyH - 24}
+            fill={bottleHighlight} opacity={bottleHighlightOp * 0.5} cornerRadius={1}
           />
 
           {/* Label */}
           <Rect
-            x={bottleStandX - 22}
-            y={bottleBodyTop + bottleBodyH * 0.28}
-            width={44} height={38}
+            x={bottleStandX - (isAmber ? 14 : 22)}
+            y={bottleBodyTop + bottleBodyH * (isAmber ? 0.22 : 0.28)}
+            width={isAmber ? 28 : 44} height={isAmber ? 28 : 38}
             fill="#FFFFFF" stroke="#CBD5E1" strokeWidth={0.5} cornerRadius={2}
           />
           <Text
-            x={bottleStandX - 22}
-            y={bottleBodyTop + bottleBodyH * 0.28 + 6}
-            width={44}
+            x={bottleStandX - (isAmber ? 14 : 22)}
+            y={bottleBodyTop + bottleBodyH * (isAmber ? 0.22 : 0.28) + (isAmber ? 4 : 6)}
+            width={isAmber ? 28 : 44}
             text={sampleName}
-            fontSize={8} fill="#334155"
+            fontSize={isAmber ? 7 : 8} fill="#334155"
             fontFamily="IBM Plex Sans" align="center" lineHeight={1.3}
           />
 
-          {/* Neck (trapezoid) */}
+          {/* Neck (trapezoid shoulder) */}
           <Line
             points={[
               bottleStandX - bottleBodyW / 2, bottleBodyTop,
@@ -217,96 +408,143 @@ export default function BottleBench({
               bottleStandX + bottleNeckW / 2, bottleNeckTop,
               bottleStandX + bottleBodyW / 2, bottleBodyTop,
             ]}
-            closed fill="#F0F4F8" stroke="#94A3B8" strokeWidth={1.2}
+            closed fill={bottleGlass} stroke={bottleStroke} strokeWidth={1.2}
           />
 
           {/* Liquid in neck */}
           <Rect
             x={bottleStandX - bottleNeckW / 2 + 2}
-            y={bottleNeckTop + 4}
-            width={bottleNeckW - 4} height={bottleNeckH - 4}
-            fill={liquidColor} opacity={0.4}
+            y={bottleNeckTop + 3}
+            width={bottleNeckW - 4} height={bottleNeckH - 3}
+            fill={liquidColor} opacity={bottleNeckLiquidOp}
           />
 
           {/* Neck rim */}
           <Rect
             x={bottleStandX - bottleNeckW / 2 - 1}
-            y={bottleNeckTop - 3}
-            width={bottleNeckW + 2} height={5}
-            fill="#E2E8F0" stroke="#94A3B8" strokeWidth={0.8} cornerRadius={2}
+            y={bottleNeckTop - 2}
+            width={bottleNeckW + 2} height={4}
+            fill={isAmber ? '#A0734D' : '#E2E8F0'} stroke={bottleStroke} strokeWidth={0.8} cornerRadius={2}
           />
 
-          {/* Cap */}
+          {/* === Standard screw cap (clear style) === */}
           <Rect
             x={bottleStandX - bottleNeckW / 2 - 2}
             y={bottleNeckTop - bottleCapH - 3}
-            width={bottleNeckW + 4} height={bottleCapH}
-            fill="#1E40AF" stroke="#1E3A8A" strokeWidth={1}
+            width={bottleNeckW + 4} height={Math.max(1, bottleCapH)}
+            fill={bottleCapFill} stroke={bottleCapStrokeFill} strokeWidth={1}
             cornerRadius={[3, 3, 0, 0]}
+            opacity={isAmber ? 0 : 1}
           />
           <Rect
             x={bottleStandX - bottleNeckW / 2}
             y={bottleNeckTop - bottleCapH - 1}
             width={bottleNeckW} height={3}
-            fill="white" opacity={0.2} cornerRadius={1}
+            fill="white" cornerRadius={1}
+            opacity={isAmber ? 0 : 0.2}
+          />
+
+          {/* === Rubber dropper bulb (amber style) === */}
+          {/* Glass dropper tube */}
+          <Rect
+            x={bottleStandX - 1}
+            y={bottleNeckTop - bottleBulbH + 4}
+            width={2} height={bottleBulbH + bottleNeckH - 2}
+            fill="#C8B89A" stroke="#A09070" strokeWidth={0.4}
+            opacity={isAmber ? 0.6 : 0}
+          />
+          {/* Rubber collar (connects bulb to neck) */}
+          <Rect
+            x={bottleStandX - bottleNeckW / 2 - 1}
+            y={bottleNeckTop - 5}
+            width={bottleNeckW + 2} height={6}
+            fill="#1A1A1A"
+            cornerRadius={1}
+            opacity={isAmber ? 1 : 0}
+          />
+          {/* Rubber bulb body */}
+          <Rect
+            x={bottleStandX - 7}
+            y={bottleNeckTop - bottleBulbH + 2}
+            width={14} height={bottleBulbH - 6}
+            fill="#2D2D2D" stroke="#1A1A1A" strokeWidth={0.6}
+            cornerRadius={[7, 7, 4, 4]}
+            opacity={isAmber ? 1 : 0}
+          />
+          {/* Bulb highlight */}
+          <Rect
+            x={bottleStandX - 4}
+            y={bottleNeckTop - bottleBulbH + 5}
+            width={3} height={bottleBulbH - 12}
+            fill="#555" cornerRadius={2}
+            opacity={isAmber ? 0.3 : 0}
+          />
+          {/* Bulb top (rounded) */}
+          <Circle
+            x={bottleStandX}
+            y={bottleNeckTop - bottleBulbH + 4}
+            radius={6}
+            fill="#333333"
+            opacity={isAmber ? 1 : 0}
           />
         </Group>
 
-        {/* ── BOTTLE (tilting, visible only while pouring) ──────────────── */}
+        {/* ── BOTTLE (tilting, visible only while pouring to cylinder) ── */}
         <Group
           x={bottlePivotX}
           y={bottlePivotY}
           rotation={tiltDeg}
           opacity={tiltProgress > 0.01 ? 1 : 0}
+          listening={false}
         >
-          {/* Body — rendered at local coords where base is at (0,0) */}
+          {/* Body */}
           <Rect
             x={-bottleBodyW / 2}
             y={-bottleBodyH}
             width={bottleBodyW}
             height={bottleBodyH}
-            fill="#F0F4F8"
-            stroke="#94A3B8"
+            fill={bottleGlass}
+            stroke={bottleStroke}
             strokeWidth={1.2}
-            cornerRadius={[2, 2, 4, 4]}
+            cornerRadius={isAmber ? [2, 2, 6, 6] : [2, 2, 4, 4]}
           />
 
           {/* Liquid inside */}
           <Rect
             x={-bottleBodyW / 2 + 3}
-            y={-bottleBodyH + 16}
+            y={-bottleBodyH + (isAmber ? 10 : 16)}
             width={bottleBodyW - 6}
             height={bottleLiquidH}
             fill={liquidColor}
-            opacity={0.55}
+            opacity={bottleLiquidOp}
             cornerRadius={[0, 0, 3, 3]}
           />
 
           {/* Glass highlights */}
           <Rect
-            x={-bottleBodyW / 2 + 5}
-            y={-bottleBodyH + 10}
-            width={4} height={bottleBodyH - 20}
-            fill="white" opacity={0.3} cornerRadius={2}
+            x={-bottleBodyW / 2 + 4}
+            y={-bottleBodyH + 8}
+            width={isAmber ? 3 : 4} height={bottleBodyH - 16}
+            fill={bottleHighlight} opacity={bottleHighlightOp} cornerRadius={2}
           />
 
           {/* Label */}
           <Rect
-            x={-22}
-            y={-bottleBodyH + bottleBodyH * 0.28}
-            width={44} height={38}
+            x={-(isAmber ? 14 : 22)}
+            y={-bottleBodyH + bottleBodyH * (isAmber ? 0.22 : 0.28)}
+            width={isAmber ? 28 : 44} height={isAmber ? 28 : 38}
             fill="#FFFFFF" stroke="#CBD5E1" strokeWidth={0.5} cornerRadius={2}
           />
           <Text
-            x={-22}
-            y={-bottleBodyH + bottleBodyH * 0.28 + 6}
-            width={44}
+            x={-(isAmber ? 14 : 22)}
+            y={-bottleBodyH + bottleBodyH * (isAmber ? 0.22 : 0.28) + (isAmber ? 4 : 6)}
+            width={isAmber ? 28 : 44}
             text={sampleName}
-            fontSize={8} fill="#334155"
+            fontSize={isAmber ? 7 : 8} fill="#334155"
             fontFamily="IBM Plex Sans" align="center" lineHeight={1.3}
           />
 
-          {/* Neck (trapezoid) */}
+          {/* Neck (trapezoid shoulder) */}
           <Line
             points={[
               -bottleBodyW / 2, -bottleBodyH,
@@ -314,58 +552,112 @@ export default function BottleBench({
               bottleNeckW / 2, -bottleBodyH - bottleNeckH,
               bottleBodyW / 2, -bottleBodyH,
             ]}
-            closed fill="#F0F4F8" stroke="#94A3B8" strokeWidth={1.2}
+            closed fill={bottleGlass} stroke={bottleStroke} strokeWidth={1.2}
           />
 
           {/* Liquid in neck */}
           <Rect
             x={-bottleNeckW / 2 + 2}
-            y={-bottleBodyH - bottleNeckH + 4}
-            width={bottleNeckW - 4} height={bottleNeckH - 4}
-            fill={liquidColor} opacity={0.4}
+            y={-bottleBodyH - bottleNeckH + 3}
+            width={bottleNeckW - 4} height={bottleNeckH - 3}
+            fill={liquidColor} opacity={bottleNeckLiquidOp}
           />
 
           {/* Neck rim */}
           <Rect
             x={-bottleNeckW / 2 - 1}
-            y={-bottleTotalH + bottleCapH - 2}
-            width={bottleNeckW + 2} height={5}
-            fill="#E2E8F0" stroke="#94A3B8" strokeWidth={0.8} cornerRadius={2}
+            y={-bottleBodyH - bottleNeckH - 2}
+            width={bottleNeckW + 2} height={4}
+            fill={isAmber ? '#A0734D' : '#E2E8F0'} stroke={bottleStroke} strokeWidth={0.8} cornerRadius={2}
+          />
+
+          {/* === Rubber dropper (amber tilting) === */}
+          {/* Glass dropper tube */}
+          <Rect
+            x={-1}
+            y={-bottleTotalH + 4}
+            width={2} height={bottleTopH + bottleNeckH - 2}
+            fill="#C8B89A" stroke="#A09070" strokeWidth={0.4}
+            opacity={isAmber ? 0.6 : 0}
+          />
+          {/* Rubber collar */}
+          <Rect
+            x={-bottleNeckW / 2 - 1}
+            y={-bottleBodyH - bottleNeckH - 5}
+            width={bottleNeckW + 2} height={6}
+            fill="#1A1A1A" cornerRadius={1}
+            opacity={isAmber ? 1 : 0}
+          />
+          {/* Rubber bulb body */}
+          <Rect
+            x={-7}
+            y={-bottleTotalH + 2}
+            width={14} height={bottleBulbH - 6}
+            fill="#2D2D2D" stroke="#1A1A1A" strokeWidth={0.6}
+            cornerRadius={[7, 7, 4, 4]}
+            opacity={isAmber ? 1 : 0}
+          />
+          {/* Bulb top */}
+          <Circle
+            x={0}
+            y={-bottleTotalH + 4}
+            radius={6}
+            fill="#333333"
+            opacity={isAmber ? 1 : 0}
           />
         </Group>
 
-        {/* Cap sitting on bench when pouring */}
+        {/* Cap sitting on bench when bottle is tilting (clear style only) */}
         <Rect
           x={bottleStandX + bottleBodyW / 2 + 10}
           y={benchY - 12}
-          width={bottleNeckW + 4} height={bottleCapH}
-          fill="#1E40AF" stroke="#1E3A8A" strokeWidth={1}
+          width={bottleNeckW + 4} height={Math.max(1, bottleCapH)}
+          fill={bottleCapFill} stroke={bottleCapStrokeFill} strokeWidth={1}
           cornerRadius={[3, 3, 0, 0]}
-          opacity={tiltProgress > 0.01 ? 0.9 : 0}
+          opacity={tiltProgress > 0.01 && !isAmber ? 0.9 : 0}
+          listening={false}
         />
 
-        {/* ── POUR STREAM (PourAnimation — same as AssemblyBench) ──────── */}
+        {/* ── POUR STREAM: bottle → cylinder ──────────────────── */}
         <PourAnimation
           fromX={bottleSpoutX}
           fromY={bottleSpoutY}
           toX={cylX}
           toY={cylSpoutY + 5}
-          isPouring={tiltProgress > 0.55 && isFilling}
+          isPouring={bottlePourActive}
           color={liquidColor}
         />
 
-        {/* ── GRADUATED CYLINDER (sits on bench) ──────────────────────── */}
-        <GraduatedCylinder
-          x={cylX}
-          y={cylY}
-          capacity={maxVolume}
-          currentVolume={currentVolume}
-          liquidColor={liquidColor}
-          isFlowing={isFilling}
-          animTime={animTime}
-          tubeWidth={cylTubeW}
-          tubeHeight={cylTubeH}
-          baseWidth={50}
+        {/* ── GRADUATED CYLINDER (in rotated group for tilt) ──── */}
+        <Group
+          x={cylX} y={benchY} rotation={cylTiltDeg}
+          listening={cylinderListening}
+          onPointerDown={() => setTimeout(() => onCylinderPress?.(), 0)}
+          onMouseEnter={(e) => { if (currentVolume > 0) setCursor(e, 'grab'); }}
+          onMouseLeave={(e) => setCursor(e, 'default')}
+        >
+          <GraduatedCylinder
+            x={0}
+            y={-(cylTubeH + 10)}
+            capacity={maxVolume}
+            currentVolume={currentVolume}
+            liquidColor={liquidColor}
+            isFlowing={isFilling}
+            animTime={animTime}
+            tubeWidth={cylTubeW}
+            tubeHeight={cylTubeH}
+            baseWidth={50}
+          />
+        </Group>
+
+        {/* ── POUR STREAM: cylinder → flask ───────────────────── */}
+        <PourAnimation
+          fromX={cylSpoutWorldX}
+          fromY={cylSpoutWorldY}
+          toX={flaskCenterX}
+          toY={flaskMouthY + 5}
+          isPouring={cylPourActive}
+          color={liquidColor}
         />
 
         {/* Labels */}
@@ -374,12 +666,14 @@ export default function BottleBench({
           text={`Probeta ${maxVolume} mL`}
           fontSize={11} fill="#64748B"
           fontFamily="IBM Plex Sans" width={100} align="center"
+          opacity={cylTiltProgress > 0.3 ? 0 : 1}
         />
         <Text
           x={bottleStandX - 45} y={benchY + 2}
           text={sampleName.replace('\n', ' ')}
           fontSize={11} fill="#64748B"
           fontFamily="IBM Plex Sans" width={90} align="center"
+          opacity={1}
         />
       </Layer>
     </Stage>
