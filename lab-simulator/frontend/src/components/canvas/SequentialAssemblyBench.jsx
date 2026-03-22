@@ -285,13 +285,15 @@ export default function SequentialAssemblyBench({
     const moveFrac = slideIn * (1 - slideBack);
     const tiltFrac = tiltUp * (1 - tiltDown);
 
-    // Target: position so tilted spout ends up ~25px LEFT of flask mouth.
-    // The pour stream bridges the gap (same approach as P5 AssemblyBench).
-    // This prevents the vessel body from overlapping the flask.
+    // Target: position so tilted spout ends up just above the flask mouth.
+    // We compute targetX/targetY so that after rotating by tiltAngle,
+    // the spout (at vesselH distance from the rotation center) lands
+    // right above the flask opening.
     const maxTiltRad = stepCfg.tiltAngle * Math.PI / 180;
-    const spoutGoalX = flaskX - 25;
+    const spoutGoalX = flaskX - 8;
+    const spoutGoalY = flaskY - 15;
     const targetX = spoutGoalX - stepCfg.vesselH * Math.sin(maxTiltRad);
-    const targetY = stepCfg.baseY - 8;
+    const targetY = spoutGoalY + stepCfg.vesselH * Math.cos(maxTiltRad);
 
     vesselX = stepCfg.baseX + (targetX - stepCfg.baseX) * moveFrac;
     vesselY = stepCfg.baseY + (targetY - stepCfg.baseY) * moveFrac;

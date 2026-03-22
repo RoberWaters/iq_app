@@ -235,14 +235,24 @@ export default function BottleBench({
   const bottleSpoutX = bottlePivotX + bottleTotalH * Math.sin(tiltRad);
   const bottleSpoutY = bottlePivotY - bottleTotalH * Math.cos(tiltRad);
 
-  // Cylinder tilt for pour-to-flask (43° so spout reaches flask mouth)
-  const cylTiltDeg = cylTiltProgress * 43;
+  // Cylinder tilt for pour-to-flask
+  const cylMaxTiltDeg = 43;
+  const cylTiltDeg = cylTiltProgress * cylMaxTiltDeg;
   const cylTiltRad = cylTiltDeg * Math.PI / 180;
   const cylTotalH = cylTubeH + cylBaseH;
 
-  // Cylinder spout world position when tilted
-  const cylSpoutWorldX = cylX + cylTotalH * Math.sin(cylTiltRad);
-  const cylSpoutWorldY = benchY - cylTotalH * Math.cos(cylTiltRad);
+  // Slide cylinder toward flask during tilt so spout reaches flask mouth
+  const maxCylTiltRad = cylMaxTiltDeg * Math.PI / 180;
+  const spoutGoalX = flaskCenterX - 25;
+  const spoutGoalY = flaskMouthY - 18;
+  const cylSlideX = spoutGoalX - cylX - cylTotalH * Math.sin(maxCylTiltRad);
+  const cylSlideY = spoutGoalY - benchY + cylTotalH * Math.cos(maxCylTiltRad);
+  const cylAnimX = cylX + cylTiltProgress * cylSlideX;
+  const cylAnimY = benchY + cylTiltProgress * cylSlideY;
+
+  // Cylinder spout world position when tilted + slid
+  const cylSpoutWorldX = cylAnimX + cylTotalH * Math.sin(cylTiltRad);
+  const cylSpoutWorldY = cylAnimY - cylTotalH * Math.cos(cylTiltRad);
 
   // Pour streams
   const bottlePourActive = tiltProgress > 0.55 && isFilling;
@@ -630,7 +640,7 @@ export default function BottleBench({
 
         {/* ── GRADUATED CYLINDER (in rotated group for tilt) ──── */}
         <Group
-          x={cylX} y={benchY} rotation={cylTiltDeg}
+          x={cylAnimX} y={cylAnimY} rotation={cylTiltDeg}
           listening={cylinderListening}
           onPointerDown={() => setTimeout(() => onCylinderPress?.(), 0)}
           onMouseEnter={(e) => { if (currentVolume > 0) setCursor(e, 'grab'); }}
