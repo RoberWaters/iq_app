@@ -32,6 +32,11 @@ export default function LabBench({ width = 500, height = 650 }) {
   const isStirring = stirrerOn && stirBarInFlask;
   const [lastMixedColor, setLastMixedColor] = useState(() => currentColor);
 
+  // Keep lastMixedColor synced with store before titration starts
+  useEffect(() => {
+    if (volumeAdded === 0) setLastMixedColor(currentColor); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [currentColor, volumeAdded]);
+
   // Progressive mixing animation state
   const [mixingProgress, setMixingProgress] = useState(0); // 0 = unmixed, 1 = fully mixed
   const mixingRafRef = useRef(null);
