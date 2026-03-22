@@ -16,6 +16,20 @@ import { useState, useCallback, useRef } from 'react';
  *   (e.g., when sample was transferred in S3 before assembly begins)
  */
 
+// Simple hex color blending (linear interpolation in RGB space)
+function blendHexColors(hex1, hex2, t) {
+  const parse = (h) => {
+    const c = h.replace('#', '');
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+  };
+  const [r1, g1, b1] = parse(hex1);
+  const [r2, g2, b2] = parse(hex2);
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+}
+
 const DEFAULT_FLASK = {
   fillLevel: 0,
   containerColor: '#DCE8F5',
@@ -195,17 +209,33 @@ export default function useSequentialAssembly(assemblySteps = [], initialFlaskSt
 
   // Add a single drop (for add_indicator steps).
   // Triggers a brief isDropping flag (400 ms) used by the canvas for the drop animation.
+  // Also progressively tints the liquid color toward the visualAfter target color.
   const addDrop = useCallback(() => {
     if (isAnimating || isDropping || !isDropStep) return;
 
     setIsDropping(true);
-    setDropCount(prev => prev + 1);
+    const newCount = dropCount + 1;
+    setDropCount(newCount);
+
+    // Progressive color tint: interpolate containerColor toward visualAfter target
+    const step = assemblySteps[currentStepIndex];
+    const targetColor = step?.visualAfter?.containerColor;
+    if (targetColor) {
+      // Expected total drops (from step config, default 20)
+      const totalExpected = step.amount ? Math.round(step.amount * 20) : 20;
+      const fraction = Math.min(1, newCount / totalExpected);
+      setFlaskState(prev => {
+        const from = prev.containerColor || '#F8F8E8';
+        const blended = blendHexColors(from, targetColor, Math.min(0.7, fraction));
+        return { ...prev, containerColor: blended };
+      });
+    }
 
     // Brief animation window — canvas shows droplet falling
     animTimeout.current = setTimeout(() => {
       setIsDropping(false);
     }, 400);
-  }, [isAnimating, isDropping, isDropStep]);
+  }, [isAnimating, isDropping, isDropStep, dropCount, assemblySteps, currentStepIndex]);
 
   // Finish the drop step: apply visualAfter and wait for "Continuar".
   const finishDrops = useCallback(() => {

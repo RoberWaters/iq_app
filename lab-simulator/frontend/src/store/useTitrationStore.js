@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   getColorAtProgress,
+  interpolateColorHSL,
   stretchTransitionsNearEndpoint,
   lightenTransitions,
   darkenTransitions,
@@ -20,6 +21,11 @@ const useTitrationStore = create((set, get) => ({
   endpointReached: false,
   endpointTolerance: 0.3,
 
+  // Magnetic stirrer state
+  stirrerOn: false,
+  stirrerSpeed: 3,
+  stirBarInFlask: false,
+
   // Initialize from practice config, with optional modifiers from assembly choices
   initTitration: (titrationConfig, expectedVolume, modifiers = {}) => {
     let transitions = [...(titrationConfig.colorTransitions || [])];
@@ -36,6 +42,19 @@ const useTitrationStore = create((set, get) => ({
       transitions = darkenTransitions(transitions);
     }
 
+    // Compute starting color: if indicator drops are known, use the same
+    // formula as useAssembly to match the color from S4 assembly
+    let startColor = transitions.length > 0 ? transitions[0].color : '#F0F0F0';
+    if (modifiers.indicatorDrops != null && modifiers.indicatorDrops > 0) {
+      const t = Math.min(1, modifiers.indicatorDrops / 10);
+      const assemblyColor = interpolateColorHSL('#D0E0EE', '#D07070', t);
+      startColor = assemblyColor;
+      // Also update the first transition entry to match
+      if (transitions.length > 0) {
+        transitions[0] = { ...transitions[0], color: assemblyColor };
+      }
+    }
+
     set({
       volumeAdded: 0,
       expectedVolume: expectedVolume || titrationConfig.expectedVolume,
@@ -43,10 +62,13 @@ const useTitrationStore = create((set, get) => ({
       dropVolume: titrationConfig.dropVolume || 0.05,
       streamVolume: titrationConfig.streamVolume || 0.50,
       colorTransitions: transitions,
-      currentColor: transitions.length > 0 ? transitions[0].color : '#F0F0F0',
+      currentColor: startColor,
       isDropping: false,
       endpointReached: false,
       endpointTolerance: titrationConfig.endpointTolerance || 0.3,
+      stirrerOn: false,
+      stirrerSpeed: 3,
+      stirBarInFlask: false,
     });
   },
 
@@ -103,12 +125,26 @@ const useTitrationStore = create((set, get) => ({
     return state.volumeAdded > state.expectedVolume * 1.10;
   },
 
+  // Magnetic stirrer actions
+  toggleStirrer: () => set((state) => {
+    if (!state.stirBarInFlask && !state.stirrerOn) return {};
+    return { stirrerOn: !state.stirrerOn };
+  }),
+  setStirrerSpeed: (speed) => set({ stirrerSpeed: Math.max(1, Math.min(5, speed)) }),
+  setStirBarInFlask: (inFlask) => set((state) => ({
+    stirBarInFlask: inFlask,
+    stirrerOn: inFlask ? state.stirrerOn : false,
+  })),
+
   // Reset
   resetTitration: () => set({
     volumeAdded: 0,
     currentColor: '#D07070',
     isDropping: false,
     endpointReached: false,
+    stirrerOn: false,
+    stirrerSpeed: 3,
+    stirBarInFlask: false,
   }),
 }));
 

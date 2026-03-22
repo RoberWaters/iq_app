@@ -1,7 +1,7 @@
 import { Group, Line, Rect } from 'react-konva';
 import LiquidFill from './LiquidFill';
 
-export default function Erlenmeyer({ x, y, liquidColor, fillLevel = 0.4 }) {
+export default function Erlenmeyer({ x, y, liquidColor, fillLevel = 0.4, isStirring = false, stirSpeed = 3 }) {
   const bodyWidth = 140;
   const bodyHeight = 120;
   const neckWidth = 30;
@@ -50,6 +50,8 @@ export default function Erlenmeyer({ x, y, liquidColor, fillLevel = 0.4 }) {
         neckHeight={neckHeight}
         fillLevel={fillLevel}
         color={liquidColor}
+        isStirring={isStirring}
+        stirSpeed={stirSpeed}
       />
 
       {/* Glass highlight (reflection) */}

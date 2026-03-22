@@ -5,20 +5,24 @@ import Erlenmeyer from './Erlenmeyer';
 import PourAnimation from './PourAnimation';
 import IndicatorBottle from './IndicatorBottle';
 import DropAnimation from './DropAnimation';
+import MagneticStirrer from './MagneticStirrer';
+import StirBar from './StirBar';
+import StirringEffect from './StirringEffect';
+import IndicatorDiffusion from './IndicatorDiffusion';
 
-const SNAP_DISTANCE = 130;
+const SNAP_DISTANCE = 160;
 
 // Safe cursor helper — Konva nodes can lose stage reference during React reconciliation
 function setCursor(e, cursor) {
   try {
     const stage = e.target?.getStage?.();
     if (stage) stage.container().style.cursor = cursor;
-  } catch (_) { /* ignore */ }
+  } catch (_e) { /* ignore */ }
 }
 
 export default function AssemblyBench({
   width = 500,
-  height = 480,
+  height = 550,
   currentStep,
   isAnimating,
   erlenmeyerColor = '#F8F8FF',
@@ -31,6 +35,18 @@ export default function AssemblyBench({
   onPourWater,
   onPourBuffer,
   onAddDrop,
+  // Stirrer state (for step 4)
+  stirrerOn = false,
+  stirBarInFlask = false,
+  stirrerSpeed = 3,
+  onToggleStirrer,
+  onPlaceBar,
+  onRemoveBar,
+  onSpeedUp,
+  onSpeedDown,
+  // Spot color for localized indicator effect
+  spotColor = null,
+  spotOpacity = 0,
 }) {
   const [nearTarget, setNearTarget] = useState(false);
   const [tiltProgress, setTiltProgress] = useState(0);
@@ -77,14 +93,33 @@ export default function AssemblyBench({
 
   const benchY = height - 20;
 
-  // Layout positions
-  const leftX = 140;
-  const rightX = 360;
-  const erlenmeyerY = 130;
+  // Layout positions — instruments sit on the bench surface
+  const leftX = 120;
+  const rightX = 400;
+  const neckHeight = 40;
+  const bodyHeight = 120;
+  const bodyWidth = 140;
+
+  // Erlenmeyer: 40px neck + 120px body = 160px total
+  const erlenmeyerY = benchY - 160;
+
+  // Step 4 uses a separate layout: flask sits on the stirrer, positioned
+  // from the bottom up so everything fits in the canvas.
+  // Stirrer (56px) + 2px gap + flask (160px) + bottle space above
+  const STIRRER_TOTAL_H = 56; // topH(24) + panelH(32)
+  const step4StirrerY = height - 20 - STIRRER_TOTAL_H;
+  const step4ErlenmeyerY = step4StirrerY - 2 - bodyHeight - neckHeight;
+  const step4FlaskBottomY = step4ErlenmeyerY + neckHeight + bodyHeight;
+
+  // Stir bar rest position (on stirrer ceramic, left of flask)
+  const stirBarRestX = width / 2 - 105;
+  const stirBarRestY = step4StirrerY + 12;
 
   // Erlenmeyer center for proximity checks (varies by step)
   const erlCenterX = (currentStep === 4 || currentStep > 4) ? width / 2 : rightX;
-  const erlCenterY = (currentStep === 4 || currentStep > 4) ? erlenmeyerY + 120 : erlenmeyerY + 80;
+  // Use step4 Y for step 4, else normal
+  const activeErlY = (currentStep === 4 || currentStep > 4) ? step4ErlenmeyerY : erlenmeyerY;
+  const erlCenterY = activeErlY + 80;
 
   // Check proximity of dragged source to Erlenmeyer
   const checkProximity = useCallback((groupPos, sourceX, sourceY) => {
@@ -113,35 +148,48 @@ export default function AssemblyBench({
     onDragStart: (e) => setCursor(e, 'grabbing'),
   }), [checkProximity]);
 
+  // GraduatedCylinder (250 mL): tubeHeight=280 + baseHeight=10 = 290
+  const largeCylY = benchY - 290;
   // Cylinder approximate center for proximity
   const cylCenterX = leftX;
-  const cylCenterY = 190;
+  const cylCenterY = largeCylY + 140;
 
-  // Buffer cylinder (10 mL probeta) approximate center
-  const beakerCenterX = 105;
-  const beakerCenterY = 130;  // y(50) + tubeHeight(160)/2
+  // Buffer cylinder (10 mL probeta): tubeHeight=160 + baseHeight=10 = 170
+  const smallCylX = 105;
+  const smallCylY = benchY - 170;
+  const beakerCenterX = smallCylX;
+  const beakerCenterY = smallCylY + 80;
 
   // ── Tilt geometry ────────────────────────────────────────────────────────
-  // Cylinders slide toward the Erlenmeyer (body left edge = x 290) while rotating CW.
-  // spoutX = baseX + H·sin(θ),  spoutY = baseY - H·cos(θ)
-  // Translation is kept small so the cylinder body never crosses x=290.
-
   const LARGE_TUBE_H = 280;
-  const largeBaseX   = leftX + tiltProgress * 15;             // 140 → 155
-  const largeBaseY   = 50 + LARGE_TUBE_H - tiltProgress * 8;  // 330 → 322
-  const largeTiltDeg = tiltProgress * 40;
+  const largeTiltDeg = 55;
   const largeTiltRad = largeTiltDeg * Math.PI / 180;
-  const largeSpoutX  = largeBaseX + LARGE_TUBE_H * Math.sin(largeTiltRad);
-  const largeSpoutY  = largeBaseY - LARGE_TUBE_H * Math.cos(largeTiltRad);
+  const largeSpoutGoalX = rightX - 20;
+  const largeSpoutGoalY = erlenmeyerY - 10;
+  const largeTargetBaseX = largeSpoutGoalX - LARGE_TUBE_H * Math.sin(largeTiltRad);
+  const largeTargetBaseY = largeSpoutGoalY + LARGE_TUBE_H * Math.cos(largeTiltRad);
+  const largeBaseX   = leftX + tiltProgress * (largeTargetBaseX - leftX);
+  const largeBaseY   = benchY + tiltProgress * (largeTargetBaseY - benchY);
+  const largeTiltAng = tiltProgress * largeTiltDeg;
+  const largeTiltR   = largeTiltAng * Math.PI / 180;
+  const largeSpoutX  = largeBaseX + LARGE_TUBE_H * Math.sin(largeTiltR);
+  const largeSpoutY  = largeBaseY - LARGE_TUBE_H * Math.cos(largeTiltR);
 
-  // Small cylinder (step 3): slides 85 px right while rotating CW up to 55°.
   const SMALL_TUBE_H = 160;
-  const SMALL_BASE_Y = 50 + SMALL_TUBE_H; // 210
-  const smallBaseX   = 105 + tiltProgress * 85;  // 105 → 190
-  const smallTiltDeg = tiltProgress * 55;
+  const smallTiltDeg = 55;
   const smallTiltRad = smallTiltDeg * Math.PI / 180;
-  const smallSpoutX  = smallBaseX + SMALL_TUBE_H * Math.sin(smallTiltRad);
-  const smallSpoutY  = SMALL_BASE_Y  - SMALL_TUBE_H * Math.cos(smallTiltRad);
+  const smallSpoutGoalX = rightX - 15;
+  const smallSpoutGoalY = erlenmeyerY - 10;
+  const smallTargetBaseX = smallSpoutGoalX - SMALL_TUBE_H * Math.sin(smallTiltRad);
+  const smallTargetBaseY = smallSpoutGoalY + SMALL_TUBE_H * Math.cos(smallTiltRad);
+  const smallBaseX   = smallCylX + tiltProgress * (smallTargetBaseX - smallCylX);
+  const smallBaseY   = benchY + tiltProgress * (smallTargetBaseY - benchY);
+  const smallTiltAng = tiltProgress * smallTiltDeg;
+  const smallTiltR   = smallTiltAng * Math.PI / 180;
+  const smallSpoutX  = smallBaseX + SMALL_TUBE_H * Math.sin(smallTiltR);
+  const smallSpoutY  = smallBaseY - SMALL_TUBE_H * Math.cos(smallTiltR);
+
+  const isStirring = stirrerOn && stirBarInFlask;
 
   return (
     <Stage width={width} height={height}>
@@ -183,7 +231,7 @@ export default function AssemblyBench({
                 : {})}
             >
               <GraduatedCylinder
-                x={leftX} y={50}
+                x={leftX} y={largeCylY}
                 capacity={maxCylinderVolume}
                 currentVolume={cylinderVolume}
               />
@@ -198,7 +246,7 @@ export default function AssemblyBench({
             <Group
               x={largeBaseX}
               y={largeBaseY}
-              rotation={largeTiltDeg}
+              rotation={largeTiltAng}
               opacity={isAnimating ? 1 : 0}
               listening={isAnimating}
             >
@@ -212,7 +260,7 @@ export default function AssemblyBench({
 
             {/* Hint text — always rendered to keep child indices stable */}
             <Text
-              x={leftX + 40} y={benchY - 55}
+              x={leftX + 40} y={erlenmeyerY - 20}
               text="Arrastra la probeta al Erlenmeyer →"
               fontSize={12} fill="#3B82F6"
               opacity={currentStep === 2 && !isAnimating ? 0.8 : 0}
@@ -260,13 +308,13 @@ export default function AssemblyBench({
                 : {})}
             >
               <GraduatedCylinder
-                x={105} y={50}
+                x={smallCylX} y={smallCylY}
                 capacity={10}
                 currentVolume={Math.min(bufferBeakerVolume, 10)}
                 tubeWidth={20} tubeHeight={160} baseWidth={32}
               />
               <Text
-                x={65} y={benchY - 25}
+                x={smallCylX - 40} y={benchY - 25}
                 text="Tampón pH 10" fontSize={10} fill="#64748B"
                 fontFamily="IBM Plex Sans" width={80} align="center"
               />
@@ -275,8 +323,8 @@ export default function AssemblyBench({
             {/* Tilting small cylinder — translates + pivots at base */}
             <Group
               x={smallBaseX}
-              y={SMALL_BASE_Y}
-              rotation={smallTiltDeg}
+              y={smallBaseY}
+              rotation={smallTiltAng}
               opacity={isAnimating ? 1 : 0}
               listening={isAnimating}
             >
@@ -291,7 +339,7 @@ export default function AssemblyBench({
 
             {/* Hint text — always rendered to keep child indices stable */}
             <Text
-              x={leftX + 40} y={benchY - 55}
+              x={leftX + 40} y={erlenmeyerY - 20}
               text="Arrastra la probeta al Erlenmeyer →"
               fontSize={12} fill="#3B82F6"
               opacity={!isAnimating ? 0.8 : 0}
@@ -308,26 +356,74 @@ export default function AssemblyBench({
           </>
         )}
 
-        {/* ===== STEP 4: Indicator bottle + Erlenmeyer ===== */}
+        {/* ===== STEP 4: Indicator bottle + Erlenmeyer + Magnetic Stirrer ===== */}
         {currentStep === 4 && (
           <>
-            {/* Erlenmeyer */}
-            <Erlenmeyer
-              x={width / 2} y={erlenmeyerY + 40}
-              liquidColor={erlenmeyerColor} fillLevel={erlenmeyerFill}
-            />
-            <Text
-              x={width / 2 - 45} y={benchY - 25}
-              text="Erlenmeyer" fontSize={11} fill="#64748B"
-              fontFamily="IBM Plex Sans" width={90} align="center"
+            {/* Magnetic stirrer plate (behind/below flask) */}
+            <MagneticStirrer
+              x={width / 2}
+              y={step4StirrerY}
+              isOn={stirrerOn}
+              speed={stirrerSpeed}
+              stirBarInFlask={stirBarInFlask}
+              onToggle={onToggleStirrer}
+              onSpeedUp={onSpeedUp}
+              onSpeedDown={onSpeedDown}
             />
 
-            {/* Indicator bottle — clickable */}
-            <IndicatorBottle x={width / 2} y={40} color={dropColor} />
-            {/* Click target area over the bottle — setTimeout defers state
-                change so React doesn't re-render Stage mid-Konva-event */}
+            {/* Erlenmeyer — on the stirrer */}
+            <Erlenmeyer
+              x={width / 2} y={step4ErlenmeyerY}
+              liquidColor={erlenmeyerColor} fillLevel={erlenmeyerFill}
+              isStirring={isStirring}
+              stirSpeed={stirrerSpeed}
+            />
+
+            {/* Indicator dye diffusing inside liquid — visible when stirrer OFF */}
+            <IndicatorDiffusion
+              x={width / 2}
+              y={step4ErlenmeyerY}
+              neckHeight={neckHeight}
+              bodyHeight={bodyHeight}
+              bodyWidth={bodyWidth}
+              fillLevel={erlenmeyerFill}
+              color={spotColor || 'rgba(0,0,0,0)'}
+              opacity={spotOpacity}
+            />
+
+            {/* Stirring effect (swirl lines + particles) */}
+            <StirringEffect
+              x={width / 2}
+              y={step4ErlenmeyerY}
+              bodyWidth={bodyWidth}
+              bodyHeight={bodyHeight}
+              neckHeight={neckHeight}
+              fillLevel={erlenmeyerFill}
+              isStirring={isStirring}
+              speed={stirrerSpeed}
+              liquidColor={erlenmeyerColor}
+            />
+
+            {/* Stir bar (draggable in/out of flask) */}
+            <StirBar
+              flaskCenterX={width / 2}
+              flaskMouthY={step4ErlenmeyerY}
+              flaskNeckHeight={neckHeight}
+              flaskBodyHeight={bodyHeight}
+              restX={stirBarRestX}
+              restY={stirBarRestY}
+              isInFlask={stirBarInFlask}
+              stirrerOn={stirrerOn}
+              speed={stirrerSpeed}
+              onPlaceInFlask={onPlaceBar}
+              onRemoveFromFlask={onRemoveBar}
+            />
+
+            {/* Indicator bottle — held above the flask */}
+            <IndicatorBottle x={width / 2} y={step4ErlenmeyerY - 100} color={dropColor} />
+            {/* Click target area over the bottle */}
             <Rect
-              x={width / 2 - 22} y={35}
+              x={width / 2 - 22} y={step4ErlenmeyerY - 105}
               width={44} height={70}
               fill="rgba(0,0,0,0.001)"
               onClick={() => { if (!isAnimating && onAddDrop) setTimeout(onAddDrop, 0); }}
@@ -336,23 +432,22 @@ export default function AssemblyBench({
               onMouseLeave={(e) => setCursor(e, 'default')}
             />
             <Text
-              x={width / 2 - 30} y={100}
+              x={width / 2 - 30} y={step4ErlenmeyerY - 45}
               text="NET" fontSize={11} fill="#64748B"
               fontFamily="IBM Plex Sans" width={60} align="center"
             />
 
-            {/* Hint text — always rendered, hidden during animation to avoid
-                react-konva reconciliation issues with child index shifts */}
+            {/* Hint text — always rendered */}
             <Text
-              x={width / 2 - 110} y={12}
+              x={width / 2 - 110} y={step4ErlenmeyerY - 130}
               text="Haz clic en el frasco para agregar gotas ↓"
               fontSize={12} fill="#3B82F6" opacity={isAnimating ? 0 : 0.8}
               fontFamily="IBM Plex Sans" width={220} align="center"
             />
 
-            {/* Drop animation */}
+            {/* Drop animation — from bottle tip down to flask mouth */}
             <DropAnimation
-              x={width / 2} startY={100} endY={erlenmeyerY + 45}
+              x={width / 2} startY={step4ErlenmeyerY - 50} endY={step4ErlenmeyerY + 5}
               isDropping={isAnimating} color={dropColor}
             />
           </>
@@ -362,11 +457,11 @@ export default function AssemblyBench({
         {currentStep > 4 && (
           <>
             <Erlenmeyer
-              x={width / 2} y={erlenmeyerY}
+              x={width / 2} y={step4ErlenmeyerY}
               liquidColor={erlenmeyerColor} fillLevel={erlenmeyerFill}
             />
             <Text
-              x={width / 2 - 60} y={benchY - 25}
+              x={width / 2 - 60} y={step4FlaskBottomY + 10}
               text="Listo para titular" fontSize={12} fill="#16A34A"
               fontFamily="IBM Plex Sans" fontStyle="bold"
               width={120} align="center"

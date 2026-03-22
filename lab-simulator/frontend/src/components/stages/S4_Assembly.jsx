@@ -87,19 +87,144 @@ function InteractiveAssemblyView({
   const {
     currentSubStep, isAnimating,
     erlenmeyerFill, erlenmeyerColor,
-    cylinderLevel, bufferAmount, setBufferAmount,
-    dropCount, completed,
-    confirmStep1, pourWater, pourBuffer,
+    cylinderLevel, bufferAmount,
+    dropCount, pendingAdvance,
+    pourWater, confirmAdvance, completeBuffer,
     addIndicatorDrop, finishAssembly, cleanup, reset,
+    // Stirrer state
+    stirrerOn, stirBarInFlask, stirrerSpeed,
+    toggleStirrer, setStirBarInFlask, setStirrerSpeed,
+    // Spot state
+    spotColor, spotOpacity,
   } = assembly;
-
-  const defaultBuffer = assemblyConfig?.buffer?.defaultVolume || 10;
-  const [bufferSliderVal, setBufferSliderVal] = useState(defaultBuffer);
   const [showSummary, setShowSummary] = useState(false);
+
+  // ── Bottle measurement state for sub-step 2 (buffer from amber bottle) ──
+  const bufferStep = steps[1]; // second step = buffer (index 1)
+  const isBottleBuffer = bufferStep?.action === 'measure_with_bottle';
+  const bottleCapacity = bufferStep?.cylinderCapacity || 25;
+  const bottleTarget = bufferStep?.volume || 10;
+
+  const [bottleVolume, setBottleVolume] = useState(0);
+  const [bottleFilling, setBottleFilling] = useState(false);
+  const [cylinderDraining, setCylinderDraining] = useState(false);
+  const [drainStarted, setDrainStarted] = useState(false);
+  const [originalDrainVolume, setOriginalDrainVolume] = useState(0);
+  const bottleInterval = useRef(null);
+  const drainInterval = useRef(null);
+
+  const fillIncrement = bottleCapacity <= 10 ? 0.05 : bottleCapacity >= 100 ? 0.8 : 0.2;
+  const drainIncrement = bottleCapacity <= 10 ? 0.05 : bottleCapacity >= 100 ? 1.0 : 0.3;
+  const minDrainThreshold = bottleCapacity <= 10 ? 0.1 : 1;
+
+  // Phase 1: Fill cylinder from bottle
+  const startBottleFill = useCallback(() => {
+    if (currentSubStep !== 2 || drainStarted || bottleInterval.current) return;
+    setBottleFilling(true);
+    bottleInterval.current = setInterval(() => {
+      setBottleVolume(prev => {
+        const next = prev + fillIncrement;
+        return next > bottleCapacity ? bottleCapacity : Math.round(next * 100) / 100;
+      });
+    }, 100);
+  }, [currentSubStep, drainStarted, bottleCapacity, fillIncrement]);
+
+  const stopBottleFill = useCallback(() => {
+    setBottleFilling(false);
+    if (bottleInterval.current) {
+      clearInterval(bottleInterval.current);
+      bottleInterval.current = null;
+    }
+  }, []);
+
+  // Phase 2: Drain cylinder to flask
+  const startCylinderDrain = useCallback(() => {
+    if (currentSubStep !== 2 || bottleFilling || bottleVolume < minDrainThreshold || drainInterval.current) return;
+    if (!drainStarted) {
+      setDrainStarted(true);
+      setOriginalDrainVolume(bottleVolume);
+    }
+    setCylinderDraining(true);
+    drainInterval.current = setInterval(() => {
+      setBottleVolume(prev => {
+        const next = Math.round((prev - drainIncrement) * 100) / 100;
+        if (next <= 0) {
+          clearInterval(drainInterval.current);
+          drainInterval.current = null;
+          setCylinderDraining(false);
+          return 0;
+        }
+        return next;
+      });
+    }, 100);
+  }, [currentSubStep, bottleFilling, bottleVolume, drainStarted, drainIncrement, minDrainThreshold]);
+
+  const stopCylinderDrain = useCallback(() => {
+    setCylinderDraining(false);
+    if (drainInterval.current) {
+      clearInterval(drainInterval.current);
+      drainInterval.current = null;
+    }
+  }, []);
+
+  // Complete buffer step when drain reaches 0
+  useEffect(() => {
+    if (currentSubStep === 2 && drainStarted && bottleVolume <= 0 && !cylinderDraining) {
+      const drainedAmount = originalDrainVolume;
+      const targetFill = bufferStep?.visualAfter?.fillLevel || 0.44;
+      setTimeout(() => completeBuffer(drainedAmount, targetFill), 100);
+    }
+  }, [currentSubStep, drainStarted, bottleVolume, cylinderDraining, originalDrainVolume, completeBuffer, bufferStep]);
+
+  // Global pointer release listener for bottle interactions
+  useEffect(() => {
+    if (currentSubStep !== 2 || !isBottleBuffer) return;
+    const handleUp = () => {
+      stopBottleFill();
+      stopCylinderDrain();
+    };
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('mouseup', handleUp);
+    window.addEventListener('touchend', handleUp);
+    return () => {
+      handleUp();
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('touchend', handleUp);
+    };
+  }, [stopBottleFill, stopCylinderDrain, currentSubStep, isBottleBuffer]);
+
+  const adjustBottle = useCallback((delta) => {
+    if (drainStarted || bottleFilling) return;
+    const newVol = Math.max(0, Math.min(bottleCapacity, Math.round((bottleVolume + delta) * 10) / 10));
+    if (newVol === bottleVolume) return;
+    setBottleVolume(newVol);
+    setBottleFilling(true);
+    setTimeout(() => setBottleFilling(false), 600);
+  }, [drainStarted, bottleFilling, bottleVolume, bottleCapacity]);
+
+  const resetBottle = () => {
+    if (drainStarted) return;
+    setBottleVolume(0);
+  };
+
+  // Flask fill for BottleBench during drain
+  const initialFlaskFill = erlenmeyerFill;
+  const targetFlaskFill = bufferStep?.visualAfter?.fillLevel || 0.44;
+  const drainFraction = drainStarted && originalDrainVolume > 0
+    ? Math.max(0, 1 - bottleVolume / originalDrainVolume)
+    : 0;
+  const computedFlaskFill = initialFlaskFill + drainFraction * (targetFlaskFill - initialFlaskFill);
 
   const handleReset = () => {
     reset();
-    setBufferSliderVal(defaultBuffer);
+    setBottleVolume(0);
+    setBottleFilling(false);
+    setCylinderDraining(false);
+    setDrainStarted(false);
+    setOriginalDrainVolume(0);
+    if (bottleInterval.current) { clearInterval(bottleInterval.current); bottleInterval.current = null; }
+    if (drainInterval.current) { clearInterval(drainInterval.current); drainInterval.current = null; }
     setShowSummary(false);
   };
 
@@ -109,22 +234,15 @@ function InteractiveAssemblyView({
 
   // Track completed steps for InstructionPanel
   useEffect(() => {
-    if (currentSubStep > 1 && !completedSteps.includes('medir_muestra')) {
-      completeStep('medir_muestra');
-    }
-    if (currentSubStep > 2 && !completedSteps.includes('transferir_erlenmeyer')) {
+    if (currentSubStep > 1 && !completedSteps.includes('transferir_erlenmeyer')) {
       completeStep('transferir_erlenmeyer');
     }
-    if (currentSubStep > 3 && !completedSteps.includes('agregar_tampon')) {
+    if (currentSubStep > 2 && !completedSteps.includes('agregar_tampon')) {
       completeStep('agregar_tampon');
     }
   }, [currentSubStep, completedSteps, completeStep]);
 
   const handlePourWater = () => pourWater();
-  const handlePourBuffer = () => {
-    setBufferAmount(bufferSliderVal);
-    pourBuffer(bufferSliderVal);
-  };
   const handleAddDrop = () => addIndicatorDrop();
 
   const handleFinish = () => {
@@ -181,39 +299,27 @@ function InteractiveAssemblyView({
 
           <div className="assembly-substep-controls">
             {/* Reset button — available during all sub-steps */}
-            {!isAnimating && (
-              <div style={{ marginBottom: '12px', textAlign: 'right' }}>
-                <button
-                  onClick={handleReset}
-                  style={{
-                    background: 'none',
-                    border: '1px solid #CBD5E1',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '4px 12px',
-                    fontSize: '0.8rem',
-                    color: 'var(--color-text-secondary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Reiniciar montaje
-                </button>
-              </div>
-            )}
+            <div style={{ marginBottom: '12px', textAlign: 'right' }}>
+              <button
+                onClick={handleReset}
+                disabled={isAnimating}
+                style={{
+                  background: 'none',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '4px 12px',
+                  fontSize: '0.8rem',
+                  color: 'var(--color-text-secondary)',
+                  cursor: isAnimating ? 'not-allowed' : 'pointer',
+                  opacity: isAnimating ? 0.4 : 1,
+                }}
+              >
+                Reiniciar montaje
+              </button>
+            </div>
 
-            {/* Sub-step 1: Confirm water measured */}
-            {currentSubStep === 1 && (
-              <div>
-                <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '12px' }}>
-                  Agua medida: <strong>{measuredValue || 100} mL</strong> en probeta
-                </p>
-                <Button onClick={confirmStep1} style={{ width: '100%' }}>
-                  Continuar
-                </Button>
-              </div>
-            )}
-
-            {/* Sub-step 2: Drag cylinder to erlenmeyer */}
-            {currentSubStep === 2 && (
+            {/* Sub-step 1: Drag cylinder to erlenmeyer */}
+            {currentSubStep === 1 && !pendingAdvance && (
               <div>
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
                   Vacía el agua de la probeta al Erlenmeyer
@@ -233,8 +339,32 @@ function InteractiveAssemblyView({
               </div>
             )}
 
-            {/* Sub-step 3: Select buffer amount, then drag */}
-            {currentSubStep === 3 && (
+            {/* Sub-step 1: Continuar after pouring water */}
+            {currentSubStep === 1 && pendingAdvance && (
+              <div>
+                <div style={{
+                  padding: '10px 14px',
+                  background: '#F0FDF4',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid #BBF7D0',
+                  fontSize: '0.85rem',
+                  color: '#166534',
+                  marginBottom: '10px',
+                }}>
+                  ✓ Agua transferida al Erlenmeyer
+                </div>
+                <Button
+                  onClick={confirmAdvance}
+                  variant="primary"
+                  style={{ width: '100%' }}
+                >
+                  Continuar
+                </Button>
+              </div>
+            )}
+
+            {/* Sub-step 2: Measure buffer from amber bottle */}
+            {currentSubStep === 2 && !drainStarted && (
               <div>
                 <label style={{
                   display: 'block',
@@ -247,36 +377,36 @@ function InteractiveAssemblyView({
 
                 <div style={{
                   fontFamily: 'var(--font-mono)',
-                  fontSize: '1.3rem',
-                  fontWeight: 600,
+                  fontSize: '2rem',
+                  fontWeight: 700,
                   color: 'var(--color-primary)',
                   textAlign: 'center',
                   marginBottom: '8px',
                 }}>
-                  {bufferSliderVal} mL
+                  {bottleVolume.toFixed(1)} mL
                 </div>
 
-                <input
-                  type="range"
-                  min={0}
-                  max={assemblyConfig?.buffer?.range?.[1] || 30}
-                  step={1}
-                  value={bufferSliderVal}
-                  onChange={(e) => setBufferSliderVal(parseInt(e.target.value))}
-                  disabled={isAnimating}
-                  style={{ width: '100%', marginBottom: '8px' }}
-                />
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                  <Button onClick={() => adjustBottle(-1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 1}>-1</Button>
+                  <Button onClick={() => adjustBottle(-0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 0.5}>-0.5</Button>
+                  <Button onClick={() => adjustBottle(0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume >= bottleCapacity}>+0.5</Button>
+                  <Button onClick={() => adjustBottle(1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume > bottleCapacity - 1}>+1</Button>
+                </div>
+
+                <Button onClick={resetBottle} variant="outline" style={{ width: '100%', marginBottom: '8px' }} disabled={bottleFilling || bottleVolume < 0.1}>
+                  Vaciar probeta
+                </Button>
 
                 <div style={{
-                  padding: '6px 10px',
+                  padding: '8px 12px',
                   background: '#EFF6FF',
                   borderRadius: 'var(--radius-md)',
-                  fontSize: '0.8rem',
+                  fontSize: '0.85rem',
                   color: '#1D4ED8',
                   border: '1px solid #BFDBFE',
                   marginBottom: '8px',
                 }}>
-                  Se recomiendan {assemblyConfig?.buffer?.defaultVolume || 10} mL
+                  Se recomiendan {bottleTarget} mL
                 </div>
 
                 <div style={{
@@ -287,15 +417,69 @@ function InteractiveAssemblyView({
                   fontSize: '0.85rem',
                   color: '#1D4ED8',
                 }}>
-                  {isAnimating
-                    ? 'Agregando tampón...'
-                    : 'Arrastra la probeta de tampón al Erlenmeyer'}
+                  {bottleVolume < minDrainThreshold
+                    ? 'Mantén presionado el frasco en el canvas para llenar la probeta'
+                    : 'Mantén presionada la probeta en el canvas para verter al matraz'
+                  }
                 </div>
               </div>
             )}
 
-            {/* Sub-step 4: Click bottle to add drops */}
-            {currentSubStep === 4 && !showSummary && (
+            {/* Sub-step 2: Draining to flask */}
+            {currentSubStep === 2 && drainStarted && !pendingAdvance && (
+              <div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '1.8rem',
+                  fontWeight: 700,
+                  color: 'var(--color-primary)',
+                  textAlign: 'center',
+                  marginBottom: '8px',
+                }}>
+                  {bottleVolume.toFixed(1)} mL
+                </div>
+                <div style={{
+                  padding: '10px 14px',
+                  background: '#EFF6FF',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid #BFDBFE',
+                  fontSize: '0.85rem',
+                  color: '#1D4ED8',
+                }}>
+                  {bottleVolume > 0
+                    ? 'Mantén presionada la probeta para verter al matraz'
+                    : 'Vertido completo'
+                  }
+                </div>
+              </div>
+            )}
+
+            {/* Sub-step 2: Continuar after buffer drain */}
+            {currentSubStep === 2 && pendingAdvance && (
+              <div>
+                <div style={{
+                  padding: '10px 14px',
+                  background: '#F0FDF4',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid #BBF7D0',
+                  fontSize: '0.85rem',
+                  color: '#166534',
+                  marginBottom: '10px',
+                }}>
+                  ✓ Tampón pH 10 agregado al Erlenmeyer
+                </div>
+                <Button
+                  onClick={confirmAdvance}
+                  variant="primary"
+                  style={{ width: '100%' }}
+                >
+                  Continuar
+                </Button>
+              </div>
+            )}
+
+            {/* Sub-step 3: Click bottle to add drops */}
+            {currentSubStep === 3 && !showSummary && (
               <div>
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
                   {assemblyConfig?.indicator?.label || 'Indicador NET'}
@@ -332,12 +516,26 @@ function InteractiveAssemblyView({
                   border: '1px solid #BFDBFE',
                   fontSize: '0.85rem',
                   color: '#1D4ED8',
-                  marginBottom: '12px',
+                  marginBottom: '8px',
                 }}>
                   {isAnimating
                     ? 'Agregando gota...'
                     : 'Haz clic sobre el frasco de indicador en el canvas'}
                 </div>
+
+                {dropCount > 0 && !(stirrerOn && stirBarInFlask) && (
+                  <div style={{
+                    padding: '8px 12px',
+                    background: '#FEF3C7',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.8rem',
+                    color: '#92400E',
+                    border: '1px solid #FDE68A',
+                    marginBottom: '8px',
+                  }}>
+                    Enciende el agitador magnético para mezclar uniformemente
+                  </div>
+                )}
 
                 <Button
                   onClick={handleFinish}
@@ -397,21 +595,48 @@ function InteractiveAssemblyView({
 
         {/* Right: Interactive Canvas */}
         <div className="titration-canvas-wrapper">
-          <AssemblyBench
-            width={500}
-            height={480}
-            currentStep={showSummary ? 5 : currentSubStep}
-            isAnimating={isAnimating}
-            erlenmeyerColor={erlenmeyerColor}
-            erlenmeyerFill={erlenmeyerFill}
-            cylinderVolume={cylinderLevel}
-            maxCylinderVolume={maxCapacity}
-            bufferBeakerVolume={bufferAmount}
-            dropColor="#CD5C5C"
-            onPourWater={handlePourWater}
-            onPourBuffer={handlePourBuffer}
-            onAddDrop={handleAddDrop}
-          />
+          {currentSubStep === 2 && isBottleBuffer ? (
+            <BottleBench
+              width={600}
+              height={480}
+              currentVolume={bottleVolume}
+              maxVolume={bottleCapacity}
+              isFilling={bottleFilling}
+              liquidColor={bufferStep?.liquidColor || '#E8E0D0'}
+              sampleName={bufferStep?.bottleLabel || 'Tampón\npH 10'}
+              showFlask={true}
+              flaskFillLevel={computedFlaskFill}
+              flaskLiquidColor={erlenmeyerColor}
+              isDraining={cylinderDraining}
+              onBottlePress={startBottleFill}
+              onCylinderPress={startCylinderDrain}
+              bottleStyle={bufferStep?.bottleStyle || 'amber'}
+            />
+          ) : (
+            <AssemblyBench
+              width={500}
+              height={currentSubStep === 3 || showSummary ? 550 : 480}
+              currentStep={showSummary ? 5 : currentSubStep === 1 ? 2 : currentSubStep === 3 ? 4 : currentSubStep}
+              isAnimating={isAnimating}
+              erlenmeyerColor={erlenmeyerColor}
+              erlenmeyerFill={erlenmeyerFill}
+              cylinderVolume={cylinderLevel}
+              maxCylinderVolume={maxCapacity}
+              dropColor="#CD5C5C"
+              onPourWater={handlePourWater}
+              onAddDrop={handleAddDrop}
+              stirrerOn={stirrerOn}
+              stirBarInFlask={stirBarInFlask}
+              stirrerSpeed={stirrerSpeed}
+              onToggleStirrer={toggleStirrer}
+              onPlaceBar={() => setStirBarInFlask(true)}
+              onRemoveBar={() => setStirBarInFlask(false)}
+              onSpeedUp={() => setStirrerSpeed(stirrerSpeed + 1)}
+              onSpeedDown={() => setStirrerSpeed(stirrerSpeed - 1)}
+              spotColor={spotColor}
+              spotOpacity={spotOpacity}
+            />
+          )}
         </div>
       </div>
     </div>

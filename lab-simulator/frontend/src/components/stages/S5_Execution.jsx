@@ -85,7 +85,7 @@ export default function S5_Execution() {
 
       <div className="titration-layout">
         <div className="titration-canvas-wrapper">
-          <LabBench width={500} height={580} />
+          <LabBench width={500} height={650} />
         </div>
 
         <div className="titration-controls-panel">
