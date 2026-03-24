@@ -1,13 +1,17 @@
+import io
 from typing import List
 
 import data.practices  # noqa: F401 — triggers catalog registration
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from data.registry import get_all_practices, get_practice
 from database import get_db
+from dependencies.auth import require_teacher
+from models.user import User
 from models.section import Section
 from models.student import Student
 from models.section_practice import SectionPractice
@@ -18,6 +22,7 @@ from schemas.teacher import (
     SectionPracticeCreate, SectionPracticeUpdate, SectionPracticeResponse,
     GradeUpsert, GradeResponse,
 )
+from services.csv_import_service import CSVImportService
 
 router = APIRouter(prefix="/teacher", tags=["teacher"])
 
@@ -184,7 +189,7 @@ async def delete_student(student_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/catalog/practices")
 async def list_catalog_practices():
-    """Return the 8 catalog practices available for assignment to sections."""
+    """Return the catalog practices available for assignment to sections."""
     return [
         {
             "id": p["id"],
@@ -284,3 +289,84 @@ async def upsert_grade(payload: GradeUpsert, db: AsyncSession = Depends(get_db))
     await db.flush()
     await db.refresh(grade)
     return grade
+
+
+# ── CSV Import (Shirley's feature) ─────────────────────────────────────────
+
+@router.post("/import-students")
+async def import_students(
+    file: UploadFile = File(...),
+    default_section: str = Form("A"),
+    current_user: User = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db)
+):
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo debe ser un CSV"
+        )
+
+    try:
+        content = await file.read()
+        csv_content = content.decode('utf-8')
+        csv_service = CSVImportService(db)
+        result = await csv_service.import_students_from_csv(csv_content, default_section)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al procesar el archivo: {str(e)}"
+        )
+
+
+@router.get("/students-template")
+async def download_students_template(
+    current_user: User = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        csv_service = CSVImportService(db)
+        template_content = await csv_service.generate_csv_template()
+        output = io.StringIO(template_content)
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode('utf-8')),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=students_template.csv"}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al generar la plantilla: {str(e)}"
+        )
+
+
+@router.post("/export-students-credentials")
+async def export_students_credentials(
+    students_data: dict,
+    current_user: User = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db)
+):
+    import csv
+
+    students = students_data.get("students", [])
+    if not students:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay estudiantes para exportar"
+        )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Número de Cuenta", "Usuario", "Contraseña"])
+    for student in students:
+        writer.writerow([
+            student.get("account_number", ""),
+            student.get("username", ""),
+            student.get("temp_password", "")
+        ])
+
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=credenciales_estudiantes.csv"}
+    )

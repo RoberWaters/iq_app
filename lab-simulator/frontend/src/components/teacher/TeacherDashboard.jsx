@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSections, createSection, updateSection, deleteSection, getCatalogPractices } from '../../api/client';
+import { useAuthStore } from '../../store/useAuthStore';
 import '../../styles/teacher.css';
 
 const STATUS_CONFIG = {
@@ -160,13 +161,14 @@ function SectionModal({ initial, catalog, onClose, onSave }) {
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
+  const logout = useAuthStore((s) => s.logout);
   const [search, setSearch] = useState('');
   const [sections, setSections] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [modal, setModal] = useState(null);  // null | 'create' | section object (for edit)
+  const [modal, setModal] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -218,7 +220,7 @@ export default function TeacherDashboard() {
           </div>
           <button
             className="btn btn--outline-primary btn--sm"
-            onClick={() => navigate('/')}
+            onClick={() => { logout(); navigate('/login'); }}
           >
             Cerrar Sesión
           </button>
