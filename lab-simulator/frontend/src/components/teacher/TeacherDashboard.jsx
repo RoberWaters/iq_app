@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { authAPI } from '../../api/auth';
 import '../../styles/teacher.css';
 
 const MOCK_SECTIONS = [
@@ -35,12 +36,126 @@ const STATUS_CONFIG = {
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
   const [search, setSearch] = useState('');
+
+  // Estados para el modal de importación
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [file, setFile] = useState(null);
+  const [section, setSection] = useState('A');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
   const filtered = MOCK_SECTIONS.filter((s) =>
     s.id.toLowerCase().includes(search.toLowerCase()) ||
     s.nextPractice.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setError(null);
+      setResult(null);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) {
+      setError('Por favor selecciona un archivo CSV');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('default_section', section);
+
+      const response = await fetch('/api/teacher/import-students', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authAPI.getToken()}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al importar estudiantes');
+      }
+
+      const data = await response.json();
+      setResult(data);
+    } catch (err) {
+      setError(err.message || 'Error al importar estudiantes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch('/api/teacher/students-template', {
+        headers: {
+          'Authorization': `Bearer ${authAPI.getToken()}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al descargar la plantilla');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'students_template.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Error al descargar la plantilla');
+    }
+  };
+
+  const handleDownloadCredentials = () => {
+    if (!result || !result.students || result.students.length === 0) return;
+
+    // Crear CSV con las credenciales
+    const csvContent = [
+      ['Número de Cuenta', 'Usuario', 'Contraseña'],
+      ...result.students.map(s => [s.account_number, s.username, s.temp_password])
+    ]
+      .map(row => row.join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'credenciales_estudiantes.csv');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const closeModal = () => {
+    setShowImportModal(false);
+    setFile(null);
+    setSection('A');
+    setResult(null);
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <motion.div
@@ -57,12 +172,20 @@ export default function TeacherDashboard() {
               Simulatoral de Química
             </h1>
           </div>
-          <button
-            className="btn btn--outline-primary btn--sm"
-            onClick={() => navigate('/')}
-          >
-            Cerrar Sesión
-          </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              className="btn btn--primary btn--sm"
+              onClick={() => setShowImportModal(true)}
+            >
+              📥 Importar Estudiantes
+            </button>
+            <button
+              className="btn btn--outline-primary btn--sm"
+              onClick={() => navigate('/')}
+            >
+              Cerrar Sesión
+            </button>
+          </div>
         </div>
 
         <div className="teacher-card__body">
@@ -126,6 +249,147 @@ export default function TeacherDashboard() {
           </table>
         </div>
       </div>
+      {/* Modal de Importación */}
+      <AnimatePresence>
+        {showImportModal && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeModal}
+          >
+            <motion.div
+              className="modal-content"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h2>📥 Importar Estudiantes desde CSV</h2>
+                <button className="modal-close" onClick={closeModal}>×</button>
+              </div>
+
+              <div className="modal-body">
+                <button 
+                  onClick={handleDownloadTemplate} 
+                  className="btn btn--outline-primary btn--sm"
+                  style={{ marginBottom: '1rem' }}
+                >
+                  📥 Descargar plantilla CSV
+                </button>
+
+                {!result ? (
+                  <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                      <label>Sección por defecto:</label>
+                      <select 
+                        value={section} 
+                        onChange={(e) => setSection(e.target.value)}
+                        className="form-select"
+                      >
+                        <option value="A">Sección A</option>
+                        <option value="B">Sección B</option>
+                        <option value="C">Sección C</option>
+                        <option value="D">Sección D</option>
+                        <option value="E">Sección E</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Archivo CSV:</label>
+                      <input 
+                        ref={fileInputRef}
+                        type="file" 
+                        accept=".csv" 
+                        onChange={handleFileChange}
+                        className="form-file-input"
+                      />
+                      {file && (
+                        <p className="file-selected"> Archivo seleccionado: {file.name}</p>
+                      )}
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      disabled={loading || !file}
+                      className={`btn btn--primary ${loading || !file ? 'btn--disabled' : ''}`}
+                    >
+                      {loading ? 'Importando...' : '📤 Importar Estudiantes'}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="import-results">
+                    <div className="result-summary">
+                      <p className="success-message"> {result.created_count} estudiantes creados exitosamente</p>
+                      
+                      {result.errors.length > 0 && (
+                        <div className="errors-section">
+                          <p className="error-message"> Errores: {result.errors.length}</p>
+                          <ul className="errors-list">
+                            {result.errors.map((err, idx) => (
+                              <li key={idx}>Fila {err.row}: {err.error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {result.students.length > 0 && (
+                      <div className="students-table-section">
+                        <p><strong>Estudiantes creados:</strong></p>
+                        <div className="students-table-wrapper">
+                          <table className="students-table">
+                            <thead>
+                              <tr>
+                                <th>Número de Cuenta</th>
+                                <th>Usuario</th>
+                                <th>Contraseña</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {result.students.map((s, idx) => (
+                                <tr key={idx}>
+                                  <td>{s.account_number}</td>
+                                  <td>{s.username}</td>
+                                  <td className="password-cell">{s.temp_password}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        
+                        <button 
+                          onClick={handleDownloadCredentials}
+                          className="btn btn--success"
+                          style={{ marginTop: '1rem' }}
+                        >
+                          📥 Descargar Credenciales (CSV)
+                        </button>
+                      </div>
+                    )}
+
+                    <button 
+                      onClick={() => { setResult(null); setFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                      className="btn btn--outline-primary"
+                      style={{ marginTop: '1rem' }}
+                    >
+                      Importar más estudiantes
+                    </button>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="error-alert">
+                     {error}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
