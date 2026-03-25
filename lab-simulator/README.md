@@ -102,6 +102,17 @@ git clone <url-del-repositorio>
 cd lab-simulator
 ```
 
+### 1.1 Crear el Primer Docente
+
+Antes de poder usar el sistema, debe crear al menos un docente:
+
+```bash
+cd lab-simulator/backend
+python -m backend.scripts.create_teacher
+```
+
+Siga las instrucciones interactivas para crear el docente. El script generará automáticamente un username.
+
 ### 2. Backend
 
 ```bash
