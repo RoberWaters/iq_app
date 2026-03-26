@@ -1,5 +1,4 @@
-import os 
-import secrets 
+import os
 from typing import Optional
 from dataclasses import dataclass, field
 from typing import List
@@ -13,7 +12,7 @@ class Settings:
     # En producción, debe establecerse mediante variable de entorno
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",
-        "dev-secret-key-change-in-production-" + secrets.token_urlsafe(32)
+        "dev-secret-key-do-not-use-in-production-abc123xyz"
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_DAYS: int = 7

@@ -121,10 +121,6 @@ class TeacherProfile(Base):
 
 class StudentProfile(Base):
     __tablename__ = "student_profiles"
-    __table_args__ = (
-        Index("ix_student_profiles_section", "section"),
-        Index("ix_student_profiles_account_number", "account_number"),
-    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
