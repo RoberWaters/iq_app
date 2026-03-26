@@ -95,6 +95,9 @@ export const updateStudent = (id, data) =>
 export const deleteStudent = (id) =>
   request(`/teacher/students/${id}`, { method: 'DELETE' });
 
+// Teacher – Catalog (8 practices available for assignment)
+export const getCatalogPractices = () => request('/teacher/catalog/practices');
+
 // Teacher – Section Practices
 export const getSectionPractices = (code) => request(`/teacher/sections/${code}/practices`);
 
@@ -110,3 +113,24 @@ export const deleteSectionPractice = (id) =>
 // Teacher – Grades
 export const upsertGrade = (data) =>
   request('/teacher/grades', { method: 'PUT', body: JSON.stringify(data) });
+
+// Teacher – CSV import por sección
+export const importSectionStudents = async (code, file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(`${BASE_URL}/teacher/sections/${code}/import-students`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('lab_simulator_token')}`,
+    },
+    body: formData,
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Error de red' }));
+    throw new Error(err.detail || `Error ${response.status}`);
+  }
+  return response.json();
+};
+
+export const getSectionImportTemplate = (code) =>
+  `${BASE_URL}/teacher/sections/${code}/import-template`;
