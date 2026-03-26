@@ -1,16 +1,153 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getSectionStudents, getSectionPractices } from '../../api/client';
+import {
+  getSectionStudents,
+  getSectionPractices,
+  getCatalogPractices,
+  createSectionPractice,
+  updateSectionPractice,
+  deleteSectionPractice,
+} from '../../api/client';
 import '../../styles/teacher.css';
 
-const PRACTICE_ACTIONS = {
-  active:  { label: 'Editar',    className: 'btn--outline-primary' },
-  blocked: { label: 'Programar', className: 'btn--warning' },
-  closed:  { label: 'Reabrir',   className: 'btn--outline-primary' },
+const PRACTICE_STATUS_CONFIG = {
+  active:  { label: 'Activa',    className: 'badge--success',  action: 'Editar',    actionClass: 'btn--outline-primary' },
+  blocked: { label: 'Bloqueada', className: 'badge--danger',   action: 'Programar', actionClass: 'btn--warning' },
+  closed:  { label: 'Cerrada',   className: 'badge--warning',  action: 'Reabrir',   actionClass: 'btn--outline-primary' },
 };
 
+const PRACTICE_STATUSES = [
+  { value: 'blocked', label: 'Bloqueada' },
+  { value: 'active',  label: 'Activa' },
+  { value: 'closed',  label: 'Cerrada' },
+];
+
 const FILTERS = ['Todos', 'Pendientes', 'Completados'];
+
+// ── Modal for assigning / editing a practice ───────────────────────────────
+
+function PracticeModal({ initial, catalog, onClose, onSave }) {
+  const isEdit = !!initial;
+  const [form, setForm] = useState(
+    isEdit
+      ? { practice_id: initial.practice_id, open_date: initial.open_date ?? '', close_date: initial.close_date ?? '', status: initial.status }
+      : { practice_id: catalog[0]?.id ?? '', open_date: '', close_date: '', status: 'blocked' }
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  function set(field, value) {
+    setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        practice_id: Number(form.practice_id),
+        open_date: form.open_date || null,
+        close_date: form.close_date || null,
+      };
+      if (isEdit) {
+        await updateSectionPractice(initial.id, { open_date: payload.open_date, close_date: payload.close_date, status: payload.status });
+      } else {
+        await onSave(payload);
+        return;
+      }
+      onSave();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <motion.div
+        className="modal-box"
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.15 }}
+      >
+        <h3 className="modal-box__title">
+          {isEdit ? `Editar práctica: ${initial.name}` : 'Asignar práctica'}
+        </h3>
+
+        <form className="modal-form" onSubmit={handleSubmit}>
+          {!isEdit && (
+            <div className="modal-form__field">
+              <label className="modal-form__label">Práctica del catálogo</label>
+              <select
+                className="modal-form__select"
+                value={form.practice_id}
+                onChange={(e) => set('practice_id', e.target.value)}
+                required
+              >
+                {catalog.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.category})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="modal-form__field">
+            <label className="modal-form__label">Fecha / hora de apertura</label>
+            <input
+              className="modal-form__input"
+              value={form.open_date}
+              onChange={(e) => set('open_date', e.target.value)}
+              placeholder="Ej: 25/04 08:00"
+            />
+          </div>
+
+          <div className="modal-form__field">
+            <label className="modal-form__label">Fecha / hora de cierre</label>
+            <input
+              className="modal-form__input"
+              value={form.close_date}
+              onChange={(e) => set('close_date', e.target.value)}
+              placeholder="Ej: 25/04 23:59"
+            />
+          </div>
+
+          <div className="modal-form__field">
+            <label className="modal-form__label">Estado</label>
+            <select
+              className="modal-form__select"
+              value={form.status}
+              onChange={(e) => set('status', e.target.value)}
+            >
+              {PRACTICE_STATUSES.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {error && <p className="modal-form__error">{error}</p>}
+
+          <div className="modal-form__footer">
+            <button type="button" className="btn btn--outline-primary btn--sm" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>
+              {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Asignar'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
 
 export default function SectionDetail() {
   const { sectionId } = useParams();
@@ -21,32 +158,57 @@ export default function SectionDetail() {
 
   const [students, setStudents] = useState([]);
   const [practices, setPractices] = useState([]);
+  const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const [practiceModal, setPracticeModal] = useState(null); // null | 'create' | practice object
+  const [confirmPracticeId, setConfirmPracticeId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  function fetchData() {
     setLoading(true);
     setError(null);
-
     Promise.all([
       getSectionStudents(sectionId),
       getSectionPractices(sectionId),
+      catalog.length ? Promise.resolve(catalog) : getCatalogPractices(),
     ])
-      .then(([studentsData, practicesData]) => {
+      .then(([studentsData, practicesData, catalogData]) => {
         setStudents(studentsData);
         setPractices(practicesData);
+        if (catalogData !== catalog) setCatalog(catalogData);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [sectionId]);
+  }
+
+  useEffect(() => { fetchData(); }, [sectionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleAssignPractice(payload) {
+    await createSectionPractice(sectionId, payload);
+    setPracticeModal(null);
+    fetchData();
+  }
+
+  async function handleDeletePractice(id) {
+    setDeleting(true);
+    try {
+      await deleteSectionPractice(id);
+      setConfirmPracticeId(null);
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const filteredStudents = students.filter((s) => {
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
     if (filter === 'Todos') return true;
-    const allDone =
-      practices.length > 0 &&
-      practices.every((p) => s.grades[p.id] != null);
+    const allDone = practices.length > 0 && practices.every((p) => s.grades[p.id] != null);
     return filter === 'Completados' ? allDone : !allDone;
   });
 
@@ -58,19 +220,13 @@ export default function SectionDetail() {
       transition={{ duration: 0.3 }}
     >
       <div className="teacher-card teacher-card--wide">
-        {/* Title bar */}
         <div className="teacher-card__header">
           <h2 className="teacher-card__title">Sección {sectionId}</h2>
-          <button
-            className="section-close"
-            onClick={() => navigate('/teacher')}
-            aria-label="Cerrar"
-          >
+          <button className="section-close" onClick={() => navigate('/teacher')} aria-label="Cerrar">
             &times;
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="tabs">
           <button
             className={`tabs__btn ${tab === 'students' ? 'tabs__btn--active' : ''}`}
@@ -88,7 +244,7 @@ export default function SectionDetail() {
 
         {error && (
           <p style={{ color: 'var(--color-danger)', textAlign: 'center', padding: '12px' }}>
-            Error al cargar datos: {error}
+            {error}
           </p>
         )}
 
@@ -101,13 +257,10 @@ export default function SectionDetail() {
             {tab === 'students' ? (
               <motion.div
                 key="students"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
                 className="tab-content"
               >
-                {/* Toolbar */}
                 <div className="toolbar">
                   <div className="toolbar__left">
                     <input
@@ -133,7 +286,6 @@ export default function SectionDetail() {
                   <button className="btn btn--warning btn--sm">Exportar</button>
                 </div>
 
-                {/* Students table */}
                 <table className="t-table">
                   <thead>
                     <tr>
@@ -152,9 +304,7 @@ export default function SectionDetail() {
                         <td className="mono">{student.student_code}</td>
                         {practices.map((p) => (
                           <td key={p.id} className="mono">
-                            {student.grades[p.id] != null
-                              ? student.grades[p.id].toFixed(1)
-                              : '---'}
+                            {student.grades[p.id] != null ? student.grades[p.id].toFixed(1) : '---'}
                           </td>
                         ))}
                         <td>
@@ -164,10 +314,7 @@ export default function SectionDetail() {
                     ))}
                     {filteredStudents.length === 0 && (
                       <tr>
-                        <td
-                          colSpan={3 + practices.length}
-                          style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}
-                        >
+                        <td colSpan={3 + practices.length} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}>
                           No se encontraron estudiantes
                         </td>
                       </tr>
@@ -178,44 +325,88 @@ export default function SectionDetail() {
             ) : (
               <motion.div
                 key="practices"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
                 className="tab-content"
               >
+                <div className="toolbar">
+                  <div className="toolbar__left" />
+                  <button
+                    className="btn btn--primary btn--sm"
+                    onClick={() => setPracticeModal('create')}
+                  >
+                    + Asignar práctica
+                  </button>
+                </div>
+
                 <table className="t-table">
                   <thead>
                     <tr>
                       <th>Práctica</th>
-                      <th>Unidad</th>
+                      <th>Categoría</th>
                       <th>Apertura</th>
                       <th>Cierre</th>
-                      <th>Acción</th>
+                      <th>Estado</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {practices.map((p) => {
-                      const action = PRACTICE_ACTIONS[p.status] ?? PRACTICE_ACTIONS.blocked;
+                      const cfg = PRACTICE_STATUS_CONFIG[p.status] ?? PRACTICE_STATUS_CONFIG.blocked;
+                      const confirming = confirmPracticeId === p.id;
                       return (
                         <tr key={p.id}>
                           <td className="t-table__bold">{p.name}</td>
-                          <td>{p.unit ?? '—'}</td>
+                          <td>{p.category}</td>
                           <td className="mono">{p.open_date ?? '—'}</td>
-                          <td className="mono">
-                            {p.close_date ?? <span className="badge badge--danger">Bloqueada</span>}
+                          <td className="mono">{p.close_date ?? '—'}</td>
+                          <td>
+                            <span className={`badge ${cfg.className}`}>{cfg.label}</span>
                           </td>
                           <td>
-                            <button className={`btn btn--sm ${action.className}`}>
-                              {action.label}
-                            </button>
+                            {confirming ? (
+                              <div className="confirm-inline">
+                                <span>¿Eliminar?</span>
+                                <button
+                                  className="btn btn--sm"
+                                  style={{ background: '#b91c1c', color: '#fff' }}
+                                  onClick={() => handleDeletePractice(p.id)}
+                                  disabled={deleting}
+                                >
+                                  {deleting ? '…' : 'Sí'}
+                                </button>
+                                <button
+                                  className="btn btn--outline-primary btn--sm"
+                                  onClick={() => setConfirmPracticeId(null)}
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="t-table__actions">
+                                <button
+                                  className="btn btn--icon"
+                                  title="Editar"
+                                  onClick={() => setPracticeModal(p)}
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  className="btn btn--icon btn--icon-danger"
+                                  title="Eliminar"
+                                  onClick={() => setConfirmPracticeId(p.id)}
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
                     })}
                     {practices.length === 0 && (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}>
                           No hay prácticas asignadas
                         </td>
                       </tr>
@@ -227,6 +418,17 @@ export default function SectionDetail() {
           </AnimatePresence>
         )}
       </div>
+
+      <AnimatePresence>
+        {practiceModal && (
+          <PracticeModal
+            initial={practiceModal === 'create' ? null : practiceModal}
+            catalog={catalog}
+            onClose={() => setPracticeModal(null)}
+            onSave={practiceModal === 'create' ? handleAssignPractice : () => { setPracticeModal(null); fetchData(); }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

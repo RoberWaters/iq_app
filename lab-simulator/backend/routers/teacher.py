@@ -1,10 +1,12 @@
 from typing import List
 
+import data.practices  # noqa: F401 — triggers catalog registration
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from data.registry import get_all_practices, get_practice
 from database import get_db
 from models.section import Section
 from models.student import Student
@@ -18,6 +20,20 @@ from schemas.teacher import (
 )
 
 router = APIRouter(prefix="/teacher", tags=["teacher"])
+
+
+def _enrich_practice(sp: SectionPractice) -> dict:
+    """Merge SectionPractice row with catalog data."""
+    catalog = get_practice(sp.practice_id) or {}
+    return {
+        "id": sp.id,
+        "practice_id": sp.practice_id,
+        "name": catalog.get("name", f"Práctica {sp.practice_id}"),
+        "category": catalog.get("category", ""),
+        "open_date": sp.open_date,
+        "close_date": sp.close_date,
+        "status": sp.status,
+    }
 
 
 async def _section_by_code(code: str, db: AsyncSession) -> Section:
@@ -164,6 +180,22 @@ async def delete_student(student_id: str, db: AsyncSession = Depends(get_db)):
     await db.flush()
 
 
+# ── Catalog ───────────────────────────────────────────────────────────────
+
+@router.get("/catalog/practices")
+async def list_catalog_practices():
+    """Return the 8 catalog practices available for assignment to sections."""
+    return [
+        {
+            "id": p["id"],
+            "name": p["name"],
+            "category": p.get("category", ""),
+            "implemented": p.get("implemented", False),
+        }
+        for p in sorted(get_all_practices(), key=lambda x: x["number"])
+    ]
+
+
 # ── Section Practices CRUD ────────────────────────────────────────────────
 
 @router.get("/sections/{code}/practices", response_model=List[SectionPracticeResponse])
@@ -174,19 +206,32 @@ async def list_section_practices(code: str, db: AsyncSession = Depends(get_db)):
         .where(SectionPractice.section_id == section.id)
         .order_by(SectionPractice.created_at)
     )
-    return result.scalars().all()
+    return [_enrich_practice(sp) for sp in result.scalars().all()]
 
 
 @router.post("/sections/{code}/practices", response_model=SectionPracticeResponse, status_code=201)
 async def create_section_practice(
     code: str, payload: SectionPracticeCreate, db: AsyncSession = Depends(get_db)
 ):
+    if not get_practice(payload.practice_id):
+        raise HTTPException(status_code=400, detail="La práctica no existe en el catálogo")
+
     section = await _section_by_code(code, db)
-    practice = SectionPractice(section_id=section.id, **payload.model_dump())
-    db.add(practice)
+
+    duplicate = await db.execute(
+        select(SectionPractice).where(
+            SectionPractice.section_id == section.id,
+            SectionPractice.practice_id == payload.practice_id,
+        )
+    )
+    if duplicate.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Esta práctica ya está asignada a la sección")
+
+    sp = SectionPractice(section_id=section.id, **payload.model_dump())
+    db.add(sp)
     await db.flush()
-    await db.refresh(practice)
-    return practice
+    await db.refresh(sp)
+    return _enrich_practice(sp)
 
 
 @router.put("/practices/{practice_id}", response_model=SectionPracticeResponse)
@@ -194,27 +239,27 @@ async def update_section_practice(
     practice_id: str, payload: SectionPracticeUpdate, db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(SectionPractice).where(SectionPractice.id == practice_id))
-    practice = result.scalar_one_or_none()
-    if not practice:
+    sp = result.scalar_one_or_none()
+    if not sp:
         raise HTTPException(status_code=404, detail="Práctica no encontrada")
 
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
-        setattr(practice, field, value)
+        setattr(sp, field, value)
 
     await db.flush()
-    await db.refresh(practice)
-    return practice
+    await db.refresh(sp)
+    return _enrich_practice(sp)
 
 
 @router.delete("/practices/{practice_id}", status_code=204)
 async def delete_section_practice(practice_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(SectionPractice).where(SectionPractice.id == practice_id))
-    practice = result.scalar_one_or_none()
-    if not practice:
+    sp = result.scalar_one_or_none()
+    if not sp:
         raise HTTPException(status_code=404, detail="Práctica no encontrada")
 
-    await db.delete(practice)
+    await db.delete(sp)
     await db.flush()
 
 

@@ -57,17 +57,17 @@ class StudentResponse(BaseModel):
 
 # ── Section Practices ─────────────────────────────────────────────────────
 
+PRACTICE_STATUSES = ("active", "blocked", "closed")
+
+
 class SectionPracticeCreate(BaseModel):
-    name: str
-    unit: Optional[str] = None
+    practice_id: int
     open_date: Optional[str] = None
     close_date: Optional[str] = None
     status: str = "blocked"
 
 
 class SectionPracticeUpdate(BaseModel):
-    name: Optional[str] = None
-    unit: Optional[str] = None
     open_date: Optional[str] = None
     close_date: Optional[str] = None
     status: Optional[str] = None
@@ -75,8 +75,9 @@ class SectionPracticeUpdate(BaseModel):
 
 class SectionPracticeResponse(BaseModel):
     id: str
+    practice_id: int
     name: str
-    unit: Optional[str] = None
+    category: str
     open_date: Optional[str] = None
     close_date: Optional[str] = None
     status: str

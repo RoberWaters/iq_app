@@ -95,6 +95,9 @@ export const updateStudent = (id, data) =>
 export const deleteStudent = (id) =>
   request(`/teacher/students/${id}`, { method: 'DELETE' });
 
+// Teacher – Catalog (8 practices available for assignment)
+export const getCatalogPractices = () => request('/teacher/catalog/practices');
+
 // Teacher – Section Practices
 export const getSectionPractices = (code) => request(`/teacher/sections/${code}/practices`);
 
