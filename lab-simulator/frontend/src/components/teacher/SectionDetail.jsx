@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,6 +8,8 @@ import {
   createSectionPractice,
   updateSectionPractice,
   deleteSectionPractice,
+  importSectionStudents,
+  getSectionImportTemplate,
 } from '../../api/client';
 import '../../styles/teacher.css';
 
@@ -147,6 +149,152 @@ function PracticeModal({ initial, catalog, onClose, onSave }) {
   );
 }
 
+// ── Import CSV Modal ───────────────────────────────────────────────────────
+
+function ImportModal({ sectionCode, onClose, onImported }) {
+  const fileRef = useRef(null);
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!file) { setError('Seleccioná un archivo CSV'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await importSectionStudents(sectionCode, file);
+      setResult(data);
+      onImported();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function downloadCredentials() {
+    if (!result?.students?.length) return;
+    const rows = [
+      ['Nombre', 'Número de cuenta', 'Usuario', 'Contraseña'],
+      ...result.students.map((s) => [s.nombre, s.numero_cuenta, s.usuario, s.contrasena]),
+    ];
+    const csv = rows.map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `credenciales_${sectionCode}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <motion.div
+        className="modal-box"
+        style={{ maxWidth: 520 }}
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.15 }}
+      >
+        <h3 className="modal-box__title">📥 Importar estudiantes — Sección {sectionCode}</h3>
+
+        {!result ? (
+          <form className="modal-form" onSubmit={handleSubmit}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+              El CSV debe tener las columnas: <strong>nombre, apellido, numero_cuenta</strong> (email es opcional).
+              {' '}
+              <a
+                href={getSectionImportTemplate(sectionCode)}
+                download
+                style={{ color: 'var(--color-primary)' }}
+              >
+                Descargar plantilla
+              </a>
+            </p>
+
+            <div className="modal-form__field">
+              <label className="modal-form__label">Archivo CSV</label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv"
+                className="modal-form__input"
+                onChange={(e) => { setFile(e.target.files[0]); setError(null); }}
+              />
+            </div>
+
+            {error && <p className="modal-form__error">{error}</p>}
+
+            <div className="modal-form__footer">
+              <button type="button" className="btn btn--outline-primary btn--sm" onClick={onClose}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn--primary btn--sm" disabled={loading}>
+                {loading ? 'Importando…' : 'Importar'}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="modal-form">
+            <div style={{ marginBottom: 16 }}>
+              <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+                ✓ {result.created_count} estudiante{result.created_count !== 1 ? 's' : ''} creado{result.created_count !== 1 ? 's' : ''}
+              </span>
+              {result.error_count > 0 && (
+                <span style={{ color: 'var(--color-danger)', marginLeft: 12 }}>
+                  ✕ {result.error_count} error{result.error_count !== 1 ? 'es' : ''}
+                </span>
+              )}
+            </div>
+
+            {result.errors.length > 0 && (
+              <div style={{ marginBottom: 12, fontSize: '0.8rem', color: 'var(--color-danger)' }}>
+                {result.errors.map((e, i) => (
+                  <div key={i}>Fila {e.fila}: {e.error}</div>
+                ))}
+              </div>
+            )}
+
+            {result.students.length > 0 && (
+              <table className="t-table" style={{ marginBottom: 16, fontSize: '0.82rem' }}>
+                <thead>
+                  <tr><th>Nombre</th><th>Cuenta</th><th>Usuario</th><th>Contraseña</th></tr>
+                </thead>
+                <tbody>
+                  {result.students.map((s, i) => (
+                    <tr key={i}>
+                      <td>{s.nombre}</td>
+                      <td>{s.numero_cuenta}</td>
+                      <td><code>{s.usuario}</code></td>
+                      <td><code>{s.contrasena}</code></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <div className="modal-form__footer">
+              <button type="button" className="btn btn--outline-primary btn--sm" onClick={onClose}>
+                Cerrar
+              </button>
+              {result.students.length > 0 && (
+                <button type="button" className="btn btn--primary btn--sm" onClick={downloadCredentials}>
+                  ⬇ Descargar credenciales
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function SectionDetail() {
@@ -165,6 +313,7 @@ export default function SectionDetail() {
   const [practiceModal, setPracticeModal] = useState(null); // null | 'create' | practice object
   const [confirmPracticeId, setConfirmPracticeId] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   function fetchData() {
     setLoading(true);
@@ -283,6 +432,12 @@ export default function SectionDetail() {
                       </button>
                     ))}
                   </div>
+                  <button
+                    className="btn btn--primary btn--sm"
+                    onClick={() => setShowImport(true)}
+                  >
+                    📥 Importar CSV
+                  </button>
                   <button className="btn btn--warning btn--sm">Exportar</button>
                 </div>
 
@@ -426,6 +581,13 @@ export default function SectionDetail() {
             catalog={catalog}
             onClose={() => setPracticeModal(null)}
             onSave={practiceModal === 'create' ? handleAssignPractice : () => { setPracticeModal(null); fetchData(); }}
+          />
+        )}
+        {showImport && (
+          <ImportModal
+            sectionCode={sectionId}
+            onClose={() => setShowImport(false)}
+            onImported={fetchData}
           />
         )}
       </AnimatePresence>

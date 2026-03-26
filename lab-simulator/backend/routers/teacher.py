@@ -291,7 +291,134 @@ async def upsert_grade(payload: GradeUpsert, db: AsyncSession = Depends(get_db))
     return grade
 
 
-# ── CSV Import (Shirley's feature) ─────────────────────────────────────────
+# ── CSV Import por sección ────────────────────────────────────────────────
+
+@router.get("/sections/{code}/import-template")
+async def download_section_import_template(code: str):
+    """Descarga la plantilla CSV para importar estudiantes a una sección."""
+    import csv as csv_module
+    output = io.StringIO()
+    writer = csv_module.writer(output)
+    writer.writerow(["nombre", "apellido", "numero_cuenta", "email"])
+    writer.writerow(["Juan", "Pérez", "20241001", "juan.perez@uni.edu"])
+    writer.writerow(["María", "López", "20241002", ""])
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode("utf-8")),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=plantilla_{code}.csv"},
+    )
+
+
+@router.post("/sections/{code}/import-students")
+async def import_students_to_section(
+    code: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Importa estudiantes a una sección desde CSV.
+    Por cada fila crea:
+    - Un User + StudentProfile (cuenta de login con contraseña temporal)
+    - Un Student en el gradebook de la sección
+    Retorna la lista de credenciales generadas.
+    """
+    import csv as csv_module
+    import secrets as secrets_module
+    from services.auth_service import AuthService
+    from schemas.auth import StudentCreate
+
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un CSV")
+
+    section = await _section_by_code(code, db)
+
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")  # utf-8-sig strips BOM automatically
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv_module.DictReader(io.StringIO(text))
+    auth_service = AuthService(db)
+    created = []
+    errors = []
+
+    from sqlalchemy.exc import IntegrityError
+
+    for i, row in enumerate(reader, start=2):
+        nombre   = (row.get("nombre") or "").strip()
+        apellido = (row.get("apellido") or "").strip()
+        cuenta   = (row.get("numero_cuenta") or "").strip()
+        email    = (row.get("email") or "").strip() or None
+
+        if not nombre or not apellido or not cuenta:
+            errors.append({"fila": i, "error": "nombre, apellido y numero_cuenta son obligatorios"})
+            continue
+
+        temp_password = secrets_module.token_urlsafe(8)
+
+        # Savepoint per student — a failure here won't poison the whole session
+        try:
+            async with db.begin_nested():
+                student_data = StudentCreate(
+                    first_name=nombre,
+                    first_surname=apellido,
+                    account_number=cuenta,
+                    email=email,
+                    section=code,
+                    generic_password=temp_password,
+                )
+                user, username, generated_password = await auth_service.create_student(student_data)
+
+                try:
+                    student_code_int = int("".join(filter(str.isdigit, cuenta))) or i
+                except (ValueError, TypeError):
+                    student_code_int = i
+
+                gradebook_student = Student(
+                    name=f"{nombre} {apellido}",
+                    student_code=student_code_int,
+                    section_id=section.id,
+                )
+                db.add(gradebook_student)
+                await db.flush()
+
+            created.append({
+                "nombre": f"{nombre} {apellido}",
+                "numero_cuenta": cuenta,
+                "usuario": username,
+                "contrasena": generated_password,
+                "email": email or "",
+            })
+
+        except IntegrityError as exc:
+            msg = str(exc.orig)
+            if "email" in msg:
+                err_msg = f"El email '{email}' ya está registrado"
+            elif "account_number" in msg:
+                err_msg = f"El número de cuenta '{cuenta}' ya está registrado"
+            elif "username" in msg:
+                err_msg = f"El usuario generado para '{nombre} {apellido}' ya existe"
+            else:
+                err_msg = "Registro duplicado"
+            errors.append({"fila": i, "error": err_msg})
+        except Exception as exc:
+            errors.append({"fila": i, "error": str(exc)})
+
+    # Actualizar conteo de la sección
+    section.student_count = (section.student_count or 0) + len(created)
+    await db.commit()
+
+    return {
+        "created_count": len(created),
+        "error_count": len(errors),
+        "students": created,
+        "errors": errors,
+    }
+
+
+# ── CSV Import global (legacy) ─────────────────────────────────────────────
 
 @router.post("/import-students")
 async def import_students(
