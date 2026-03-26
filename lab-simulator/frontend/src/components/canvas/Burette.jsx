@@ -33,19 +33,22 @@ export default function Burette({ x, y, volumeAdded, maxVolume = 50, liquidColor
   liquidPts.push(liquidLeftX, liquidBottomY);
 
   // Graduation marks (top-down: 0 at top, maxVolume at bottom — standard burette)
+  // Drawn inside the tube (from left wall inward) like a real burette
   const graduations = [];
+  const tubeLeftInner = x - tubeWidth / 2 + 2;
   for (let i = 0; i <= maxVolume; i++) {
-    const yPos = tubeTop + (i / maxVolume) * tubeHeight;
-    const isMajor = i % 10 === 0;
+    const gradPad = 6;
+    const yPos = (tubeTop + gradPad) + (i / maxVolume) * (tubeHeight - 2 * gradPad);
+    const isMajor = i % 10 === 0 || i === maxVolume;
     const isMid = i % 5 === 0;
-    const lineLen = isMajor ? 12 : isMid ? 8 : 4;
+    const lineLen = isMajor ? 10 : isMid ? 7 : 3;
 
     graduations.push(
       <Line
         key={`grad-${i}`}
-        points={[x + tubeWidth / 2, yPos, x + tubeWidth / 2 + lineLen, yPos]}
-        stroke="#94A3B8"
-        strokeWidth={isMajor ? 1.5 : 0.5}
+        points={[tubeLeftInner, yPos, tubeLeftInner + lineLen, yPos]}
+        stroke="#5A6F82"
+        strokeWidth={isMajor ? 1 : 0.5}
       />
     );
 
@@ -53,11 +56,11 @@ export default function Burette({ x, y, volumeAdded, maxVolume = 50, liquidColor
       graduations.push(
         <Text
           key={`label-${i}`}
-          x={x + tubeWidth / 2 + 14}
-          y={yPos - 5}
+          x={tubeLeftInner + lineLen + 1}
+          y={yPos - 4}
           text={String(i)}
-          fontSize={9}
-          fill="#64748B"
+          fontSize={7}
+          fill="#475569"
           fontFamily="IBM Plex Mono"
         />
       );

@@ -221,7 +221,7 @@ export default function BottleBench({
   // ── Derived values ─────────────────────────────────────────────
 
   // Bottle tilt (bottle → cylinder)
-  const tiltDeg = tiltProgress * 50;
+  const tiltDeg = tiltProgress * 100;
   const tiltRad = tiltDeg * Math.PI / 180;
 
   const targetSpoutX = cylX - cylTubeW / 2 - 5;
@@ -236,7 +236,7 @@ export default function BottleBench({
   const bottleSpoutY = bottlePivotY - bottleTotalH * Math.cos(tiltRad);
 
   // Cylinder tilt for pour-to-flask
-  const cylMaxTiltDeg = 43;
+  const cylMaxTiltDeg = 100;
   const cylTiltDeg = cylTiltProgress * cylMaxTiltDeg;
   const cylTiltRad = cylTiltDeg * Math.PI / 180;
   const cylTotalH = cylTubeH + cylBaseH;

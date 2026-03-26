@@ -162,7 +162,7 @@ export default function AssemblyBench({
 
   // ── Tilt geometry ────────────────────────────────────────────────────────
   const LARGE_TUBE_H = 280;
-  const largeTiltDeg = 55;
+  const largeTiltDeg = 100;
   const largeTiltRad = largeTiltDeg * Math.PI / 180;
   const largeSpoutGoalX = rightX - 20;
   const largeSpoutGoalY = erlenmeyerY - 10;
@@ -176,7 +176,7 @@ export default function AssemblyBench({
   const largeSpoutY  = largeBaseY - LARGE_TUBE_H * Math.cos(largeTiltR);
 
   const SMALL_TUBE_H = 160;
-  const smallTiltDeg = 55;
+  const smallTiltDeg = 100;
   const smallTiltRad = smallTiltDeg * Math.PI / 180;
   const smallSpoutGoalX = rightX - 15;
   const smallSpoutGoalY = erlenmeyerY - 10;

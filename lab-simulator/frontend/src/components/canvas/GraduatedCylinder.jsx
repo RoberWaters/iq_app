@@ -61,23 +61,26 @@ export default function GraduatedCylinder({
   });
 
   // Graduation marks (bottom-up: 0 at bottom, capacity at top)
+  // Drawn inside the tube (from left wall inward) like a real graduated cylinder
   const graduations = [];
   const majorStep = capacity <= 10 ? 2 : capacity <= 100 ? 10 : 50;
   const minorStep = capacity <= 10 ? 1 : capacity <= 100 ? 5 : 10;
   const tickStep = capacity <= 10 ? 1 : capacity <= 100 ? 1 : 5;
+  const tubeLeftInner = x - tubeWidth / 2 + 2;
 
   for (let v = 0; v <= capacity; v += tickStep) {
-    const yPos = y + tubeHeight - (v / capacity) * tubeHeight;
-    const isMajor = v % majorStep === 0;
+    const gradPad = 6;
+    const yPos = y + (tubeHeight - gradPad) - (v / capacity) * (tubeHeight - 2 * gradPad);
+    const isMajor = v % majorStep === 0 || v === capacity;
     const isMid = v % minorStep === 0;
-    const lineLen = isMajor ? 14 : isMid ? 9 : 4;
+    const lineLen = isMajor ? 12 : isMid ? 8 : 4;
 
     graduations.push(
       <Line
         key={`grad-${v}`}
-        points={[x + tubeWidth / 2, yPos, x + tubeWidth / 2 + lineLen, yPos]}
-        stroke="#94A3B8"
-        strokeWidth={isMajor ? 1.5 : 0.5}
+        points={[tubeLeftInner, yPos, tubeLeftInner + lineLen, yPos]}
+        stroke="#5A6F82"
+        strokeWidth={isMajor ? 1 : 0.5}
       />
     );
 
@@ -85,11 +88,11 @@ export default function GraduatedCylinder({
       graduations.push(
         <Text
           key={`label-${v}`}
-          x={x + tubeWidth / 2 + 16}
+          x={tubeLeftInner + lineLen + 1}
           y={yPos - 5}
           text={String(v)}
-          fontSize={9}
-          fill="#64748B"
+          fontSize={8}
+          fill="#475569"
           fontFamily="IBM Plex Mono"
         />
       );
