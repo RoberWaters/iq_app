@@ -82,3 +82,31 @@ export const updateSection = (id, data) =>
 
 export const deleteSection = (id) =>
   request(`/teacher/sections/${id}`, { method: 'DELETE' });
+
+// Teacher – Students
+export const getSectionStudents = (code) => request(`/teacher/sections/${code}/students`);
+
+export const createStudent = (code, data) =>
+  request(`/teacher/sections/${code}/students`, { method: 'POST', body: JSON.stringify(data) });
+
+export const updateStudent = (id, data) =>
+  request(`/teacher/students/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteStudent = (id) =>
+  request(`/teacher/students/${id}`, { method: 'DELETE' });
+
+// Teacher – Section Practices
+export const getSectionPractices = (code) => request(`/teacher/sections/${code}/practices`);
+
+export const createSectionPractice = (code, data) =>
+  request(`/teacher/sections/${code}/practices`, { method: 'POST', body: JSON.stringify(data) });
+
+export const updateSectionPractice = (id, data) =>
+  request(`/teacher/practices/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteSectionPractice = (id) =>
+  request(`/teacher/practices/${id}`, { method: 'DELETE' });
+
+// Teacher – Grades
+export const upsertGrade = (data) =>
+  request('/teacher/grades', { method: 'PUT', body: JSON.stringify(data) });

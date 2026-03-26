@@ -1,7 +1,9 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict
 from datetime import datetime
 
+
+# ── Sections ──────────────────────────────────────────────────────────────
 
 class SectionCreate(BaseModel):
     code: str
@@ -28,5 +30,72 @@ class SectionResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Students ──────────────────────────────────────────────────────────────
+
+class StudentCreate(BaseModel):
+    name: str
+    student_code: int
+
+
+class StudentUpdate(BaseModel):
+    name: Optional[str] = None
+    student_code: Optional[int] = None
+
+
+class StudentResponse(BaseModel):
+    id: str
+    name: str
+    student_code: int
+    grades: Dict[str, Optional[float]] = {}
+
+    model_config = {"from_attributes": True}
+
+
+# ── Section Practices ─────────────────────────────────────────────────────
+
+class SectionPracticeCreate(BaseModel):
+    name: str
+    unit: Optional[str] = None
+    open_date: Optional[str] = None
+    close_date: Optional[str] = None
+    status: str = "blocked"
+
+
+class SectionPracticeUpdate(BaseModel):
+    name: Optional[str] = None
+    unit: Optional[str] = None
+    open_date: Optional[str] = None
+    close_date: Optional[str] = None
+    status: Optional[str] = None
+
+
+class SectionPracticeResponse(BaseModel):
+    id: str
+    name: str
+    unit: Optional[str] = None
+    open_date: Optional[str] = None
+    close_date: Optional[str] = None
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
+# ── Grades ────────────────────────────────────────────────────────────────
+
+class GradeUpsert(BaseModel):
+    student_id: str
+    section_practice_id: str
+    score: Optional[float] = None
+
+
+class GradeResponse(BaseModel):
+    id: str
+    student_id: str
+    section_practice_id: str
+    score: Optional[float] = None
 
     model_config = {"from_attributes": True}
