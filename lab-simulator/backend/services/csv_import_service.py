@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas.auth import StudentCreate, CSVImportResult, StudentCreationResult
 from services.auth_service import AuthService
+from services.email_service import EmailService
 
 
 class CSVImportService:
@@ -17,6 +18,7 @@ class CSVImportService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.auth_service = AuthService(db)
+        self.email_service = EmailService()
     
     async def import_students_from_csv(
         self,
@@ -31,7 +33,7 @@ class CSVImportService:
         - second_name (opcional)
         - first_surname (requerido)
         - second_surname (opcional)
-        - email (opcional)
+        - email (opcional pero recomendado para envío de credenciales)
         - section (opcional, usa default_section si no está)
         - account_number (requerido)
         
@@ -40,11 +42,13 @@ class CSVImportService:
             default_section: Sección por defecto si no se especifica en el CSV
         
         Returns:
-            CSVImportResult con conteo de creados, errores y lista de estudiantes
+            CSVImportResult con conteo de creados, errores, lista de estudiantes
+            y resultados de envío de correos
         """
         created_count = 0
         errors: List[Dict] = []
         students: List[StudentCreationResult] = []
+        email_results: List[Dict] = []
         
         # Parsear CSV
         try:
@@ -55,7 +59,8 @@ class CSVImportService:
             return CSVImportResult(
                 created_count=0,
                 errors=[{"row": 0, "error": f"Error al parsear CSV: {str(e)}"}],
-                students=[]
+                students=[],
+                email_results=[]
             )
         
         # Procesar cada fila
@@ -114,13 +119,34 @@ class CSVImportService:
                     student_data
                 )
                 
+                # Construir nombre completo para el correo
+                full_name = f"{first_name}"
+                if second_name:
+                    full_name += f" {second_name}"
+                full_name += f" {first_surname}"
+                if second_surname:
+                    full_name += f" {second_surname}"
+                
                 created_count += 1
-                students.append(StudentCreationResult(
+                student_result = StudentCreationResult(
                     username=username,
                     email=email,
                     temp_password=generated_password,
                     account_number=account_number
-                ))
+                )
+                students.append(student_result)
+                
+                # Enviar correo con credenciales (de forma individual)
+                email_result = await self.email_service.send_credentials_email(
+                    to_email=email,
+                    student_name=full_name,
+                    username=username,
+                    password=generated_password,
+                    account_number=account_number
+                )
+                email_result['account_number'] = account_number
+                email_result['email'] = email
+                email_results.append(email_result)
                 
             except Exception as e:
                 errors.append({
@@ -131,7 +157,8 @@ class CSVImportService:
         return CSVImportResult(
             created_count=created_count,
             errors=errors,
-            students=students
+            students=students,
+            email_results=email_results
         )
     
     async def generate_csv_template(self) -> str:
@@ -161,7 +188,7 @@ class CSVImportService:
             "Carlos",
             "Pérez",
             "García",
-            "juan.perez@email.com",
+            "juan.perez@universidad.edu",
             "A",
             "2024001"
         ])
@@ -170,7 +197,7 @@ class CSVImportService:
             "",
             "López",
             "",
-            "maria.lopez@email.com",
+            "maria.lopez@universidad.edu",
             "B",
             "2024002"
         ])

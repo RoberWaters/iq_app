@@ -124,28 +124,6 @@ export default function TeacherDashboard() {
     }
   };
 
-  const handleDownloadCredentials = () => {
-    if (!result || !result.students || result.students.length === 0) return;
-
-    // Crear CSV con las credenciales
-    const csvContent = [
-      ['Número de Cuenta', 'Usuario', 'Contraseña'],
-      ...result.students.map(s => [s.account_number, s.username, s.temp_password])
-    ]
-      .map(row => row.join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'credenciales_estudiantes.csv');
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-  };
-
   const closeModal = () => {
     setShowImportModal(false);
     setFile(null);
@@ -155,6 +133,15 @@ export default function TeacherDashboard() {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  // Calcular estadísticas de envío de correos
+  const getEmailStats = () => {
+    if (!result || !result.email_results) return { success: 0, failed: 0, total: 0 };
+    
+    const success = result.email_results.filter(r => r.success).length;
+    const failed = result.email_results.filter(r => !r.success).length;
+    return { success, failed, total: result.email_results.length };
   };
 
   return (
@@ -249,6 +236,7 @@ export default function TeacherDashboard() {
           </table>
         </div>
       </div>
+
       {/* Modal de Importación */}
       <AnimatePresence>
         {showImportModal && (
@@ -307,8 +295,18 @@ export default function TeacherDashboard() {
                         className="form-file-input"
                       />
                       {file && (
-                        <p className="file-selected"> Archivo seleccionado: {file.name}</p>
+                        <p className="file-selected">✅ Archivo seleccionado: {file.name}</p>
                       )}
+                    </div>
+
+                    <div className="info-box" style={{ 
+                      backgroundColor: '#e3f2fd', 
+                      padding: '12px', 
+                      borderRadius: '6px',
+                      marginBottom: '1rem',
+                      fontSize: '14px'
+                    }}>
+                      <strong>💡 Nota:</strong> El CSV debe incluir la columna <strong>email</strong> para que el sistema pueda enviar las credenciales automáticamente a cada estudiante.
                     </div>
 
                     <button 
@@ -322,11 +320,89 @@ export default function TeacherDashboard() {
                 ) : (
                   <div className="import-results">
                     <div className="result-summary">
-                      <p className="success-message"> {result.created_count} estudiantes creados exitosamente</p>
+                      <p className="success-message">✅ {result.created_count} estudiantes creados exitosamente</p>
+                      
+                      {/* Resultados de envío de correos */}
+                      {result.email_results && result.email_results.length > 0 && (
+                        <div className="email-results-section" style={{ marginTop: '1rem' }}>
+                          <p><strong>📧 Envío de Credenciales:</strong></p>
+                          
+                          {(() => {
+                            const stats = getEmailStats();
+                            return (
+                              <div style={{ 
+                                display: 'flex', 
+                                gap: '10px', 
+                                marginTop: '8px',
+                                marginBottom: '12px'
+                              }}>
+                                <span style={{ 
+                                  backgroundColor: '#d4edda', 
+                                  color: '#155724',
+                                  padding: '4px 12px',
+                                  borderRadius: '4px',
+                                  fontSize: '14px'
+                                }}>
+                                  ✅ Enviados: {stats.success}
+                                </span>
+                                {stats.failed > 0 && (
+                                  <span style={{ 
+                                    backgroundColor: '#f8d7da', 
+                                    color: '#721c24',
+                                    padding: '4px 12px',
+                                    borderRadius: '4px',
+                                    fontSize: '14px'
+                                  }}>
+                                    ❌ Fallidos: {stats.failed}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Detalles de correos fallidos */}
+                          {result.email_results.some(r => !r.success) && (
+                            <div className="failed-emails" style={{ 
+                              backgroundColor: '#fff3cd',
+                              border: '1px solid #ffc107',
+                              borderRadius: '4px',
+                              padding: '10px',
+                              marginTop: '8px',
+                              fontSize: '13px'
+                            }}>
+                              <strong>⚠️ Correos no enviados:</strong>
+                              <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                                {result.email_results
+                                  .filter(r => !r.success)
+                                  .map((r, idx) => (
+                                    <li key={idx}>
+                                      {r.account_number}: {r.message}
+                                    </li>
+                                  ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Mensaje de éxito total */}
+                          {result.email_results.every(r => r.success) && (
+                            <div style={{ 
+                              backgroundColor: '#d4edda',
+                              border: '1px solid #28a745',
+                              borderRadius: '4px',
+                              padding: '10px',
+                              marginTop: '8px',
+                              fontSize: '14px',
+                              color: '#155724'
+                            }}>
+                              ✅ Todas las credenciales fueron enviadas exitosamente a los correos institucionales.
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
                       {result.errors.length > 0 && (
                         <div className="errors-section">
-                          <p className="error-message"> Errores: {result.errors.length}</p>
+                          <p className="error-message">⚠️ Errores: {result.errors.length}</p>
                           <ul className="errors-list">
                             {result.errors.map((err, idx) => (
                               <li key={idx}>Fila {err.row}: {err.error}</li>
@@ -346,27 +422,36 @@ export default function TeacherDashboard() {
                                 <th>Número de Cuenta</th>
                                 <th>Usuario</th>
                                 <th>Contraseña</th>
+                                <th>Estado Correo</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {result.students.map((s, idx) => (
-                                <tr key={idx}>
-                                  <td>{s.account_number}</td>
-                                  <td>{s.username}</td>
-                                  <td className="password-cell">{s.temp_password}</td>
-                                </tr>
-                              ))}
+                              {result.students.map((s, idx) => {
+                                const emailResult = result.email_results?.find(
+                                  r => r.account_number === s.account_number
+                                );
+                                return (
+                                  <tr key={idx}>
+                                    <td>{s.account_number}</td>
+                                    <td>{s.username}</td>
+                                    <td className="password-cell">{s.temp_password}</td>
+                                    <td>
+                                      {emailResult ? (
+                                        emailResult.success ? (
+                                          <span style={{ color: '#28a745' }}>✅ Enviado</span>
+                                        ) : (
+                                          <span style={{ color: '#dc3545' }}>❌ {emailResult.message}</span>
+                                        )
+                                      ) : (
+                                        <span style={{ color: '#6c757d' }}>-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
-                        
-                        <button 
-                          onClick={handleDownloadCredentials}
-                          className="btn btn--success"
-                          style={{ marginTop: '1rem' }}
-                        >
-                          📥 Descargar Credenciales (CSV)
-                        </button>
                       </div>
                     )}
 
@@ -382,7 +467,7 @@ export default function TeacherDashboard() {
 
                 {error && (
                   <div className="error-alert">
-                     {error}
+                    ⚠️ {error}
                   </div>
                 )}
               </div>

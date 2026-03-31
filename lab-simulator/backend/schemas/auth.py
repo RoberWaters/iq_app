@@ -128,7 +128,15 @@ class StudentCreationResult(BaseModel):
     account_number: str
 
 
+class EmailResult(BaseModel):
+    success: bool
+    message: str
+    account_number: str
+    email: Optional[str] = None
+
+
 class CSVImportResult(BaseModel):
     created_count: int
     errors: list[dict]
     students: list[StudentCreationResult]
+    email_results: list[EmailResult]
