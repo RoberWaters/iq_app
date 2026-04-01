@@ -1,0 +1,20 @@
+<form method="post" action="./pro_listado_alumnos.aspx" id="ctl00">
+<div class="aspNetHidden">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="" />
+</div>
+<div>
+	<table cellspacing="0" cellpadding="3" rules="all" id="MainContent_GridView1" style="background-color:White;border-color:#CCCCCC;border-width:1px;border-style:None;width:910px;border-collapse:collapse;">
+		<tr style="color:White;background-color:#006699;font-weight:bold;">
+			<th scope="col">N&#186;</th><th scope="col">Cuenta</th><th scope="col">Nombre Completo</th><th scope="col">Correo Institucional</th><th scope="col">Centro Estudiante</th><th scope="col">Matricula Excepcional</th>
+		</tr><tr style="color:#000066;">
+			<td>1</td><td>20201002442</td><td>DIANA MILENA MARTINEZ BANEGAS</td><td>dmmartinezb@unah.hn</td><td>CIUDAD UNIVERSITARIA</td><td>NO</td>
+		</tr><tr style="color:#000066;">
+			<td>2</td><td>20211030536</td><td>SHIRLEY TATIANA HERNANDEZ REYES</td><td>sthernandezr@unah.hn</td><td>CIUDAD UNIVERSITARIA</td><td>NO</td>
+		</tr><tr style="color:#000066;">
+			<td>3</td><td>20211031218</td><td>JOSE ROBERTO VALERIO FIGUEROA</td><td>jvaleriof@unah.hn</td><td>CIUDAD UNIVERSITARIA</td><td>NO</td>
+		</tr><tr style="color:#000066;">
+			<td>4</td><td>20221030927</td><td>ASHLEY FABIOLA SILVA SUAREZ</td><td>ashley.silva@unah.hn</td><td>CIUDAD UNIVERSITARIA</td><td>NO</td>
+		</tr><tr style="color:#000066;">
+		</tr>
+	</table>
+</div></form>
