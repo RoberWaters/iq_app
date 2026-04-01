@@ -23,7 +23,7 @@ El sistema ahora envía automáticamente las credenciales de acceso a cada estud
 3. **`config.py`** - Agregada configuración SMTP
 4. **`schemas/auth.py`** - Agregado `EmailResult` al esquema de respuesta
 5. **`routers/teacher.py`** - Eliminado endpoint de exportación CSV (ya no es necesario)
-6. **`requirements.txt`** - Agregada dependencia `aiosmtplib`
+6. **`requirements.txt`** - Dependencias (pandas, openpyxl, xlrd)
 
 ### Frontend
 1. **`TeacherDashboard.jsx`** - Actualizado para mostrar estado de envío de correos
@@ -60,31 +60,35 @@ export FROM_NAME="Simulatoral de Química"
 
 ### Opción 3: Servidor SMTP Institucional
 
-Consulta con tu departamento de TI los valores correctos para:
+Consulta con el departamento de TI los valores correctos para:
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_USE_TLS` (true/false)
 
 ## Formato del CSV
 
-El archivo CSV debe incluir la columna `email` para que el sistema pueda enviar las credenciales:
+ El archivo Excel debe contener las columnas estándar del sistema de la universidad:
 
-```csv
-first_name,second_name,first_surname,second_surname,email,section,account_number
-Juan,Carlos,Pérez,García,juan.perez@universidad.edu,A,2024001
-María,,López,,maria.lopez@universidad.edu,B,2024002
-```
+- **N°** - Número de fila (se ignora)
+- **Cuenta** - Número de cuenta del estudiante
+- **Nombre Completo** - Nombre completo del estudiante
+- **Correo Institucional** - Correo electrónico para envío de credenciales
+- **Centro Estudiante** - Centro donde estudia (se ignora)
+- **Matricula Excepcional** - Indicador de matrícula (se ignora)
 
-### Columnas Requeridas:
-- `first_name` - Primer nombre
-- `first_surname` - Primer apellido
-- `account_number` - Número de cuenta
+## Separación Automática del Nombre
 
-### Columnas Opcionales:
-- `second_name` - Segundo nombre
-- `second_surname` - Segundo apellido
-- `email` - Correo electrónico (recomendado para envío automático)
-- `section` - Sección (si no se especifica, usa la seleccionada en el formulario)
+El sistema separa automáticamente el **Nombre Completo** en sus componentes:
+
+| Nombre Completo | Primer Nombre | Segundo Nombre | Primer Apellido | Segundo Apellido 
+
+## Algoritmo de Separación
+
+El sistema utiliza el siguiente algoritmo:
+
+1. **2 nombres + 2 apellidos** (caso más común): Los últimos 2 elementos son apellidos
+2. **3 elementos**: Asume 2 nombres + 1 apellido
+3. **Más de 4 elementos**: Primer nombre, resto como segundo nombre, últimos 2 como apellidos
 
 ## Flujo de Trabajo
 
@@ -105,25 +109,30 @@ las columnas first_name, second_name, first_surname, second_surname, email, sect
 
 ## Solución de Problemas
 
-### Los correos no se envían
-1. Verifica la configuración SMTP en las variables de entorno
-2. Revisa los logs del servidor para errores específicos
-3. Asegúrate de que el puerto SMTP no esté bloqueado por el firewall
+### Error al leer el archivo Excel
 
-### Estudiantes sin correo
-- El sistema mostrará un mensaje indicando que no se pudo enviar el correo
-- El docente puede ver la contraseña temporal en la tabla de resultados
-- Se recomienda contactar al estudiante directamente
+- Asegúrate de que el archivo no esté corrupto
+- Verifica que tenga las columnas requeridas: Cuenta, Nombre Completo
+- El sistema acepta tanto .xlsx como .xls
 
-### Gmail bloquea el acceso
-- Usa una "Contraseña de aplicación" en lugar de tu contraseña normal
-- Verifica que la "Verificación en dos pasos" esté activada
-- Revisa la bandeja de entrada para alertas de seguridad
+### Nombres no se separan correctamente
+
+El sistema asume el formato estándar hispano:
+- 2 nombres + 2 apellidos (caso más común)
+
+Si un estudiante tiene un formato diferente, el username puede generarse incorrectamente. En estos casos:
+1. El estudiante puede usar el username generado
+2. O el administrador puede modificar el username manualmente en la base de datos
+
+### Correos no se envían
+
+1. Verifica la configuración SMTP
+2. Revisa que los correos en el Excel sean válidos
+3. Consulta los logs del servidor para errores específicos
+
 
 ## Instalación de Dependencias
 
 ```bash
 pip install -r requirements.txt
 ```
-
-La nueva dependencia `aiosmtplib` permite el envío asíncrono de correos sin bloquear el servidor.

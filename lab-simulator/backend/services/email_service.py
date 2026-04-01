@@ -51,7 +51,7 @@ class EmailService:
             
             # Crear el mensaje
             msg = MIMEMultipart('alternative')
-            msg['Subject'] = 'Credenciales de Acceso - Simulatoral de Química'
+            msg['Subject'] = 'Claves de Acceso - Simulador de Química Analítica'
             msg['From'] = f"{self.from_name} <{self.from_email}>"
             msg['To'] = to_email
             
@@ -170,7 +170,7 @@ class EmailService:
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Credenciales de Acceso</title>
+            <title>Claves de Acceso</title>
             <style>
                 body {{
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -251,12 +251,12 @@ class EmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🧪 Simulatoral de Química</h1>
+                    <h1>Laboratorio virtual de Química</h1>
                 </div>
                 <div class="content">
                     <p class="welcome">Hola <strong>{student_name}</strong>,</p>
                     
-                    <p>Se han generado tus credenciales de acceso para el <strong>Simulatoral de Química</strong>.</p>
+                    <p>Se han generado tus claves de acceso para el <strong>Laboratorio de Química Analítica</strong>.</p>
                     
                     <div class="credentials-box">
                         <div class="credential-item">
@@ -268,7 +268,7 @@ class EmailService:
                             <span class="credential-value">{username}</span>
                         </div>
                         <div class="credential-item">
-                            <span class="credential-label">Contraseña:</span>
+                            <span class="credential-label">Clave:</span>
                             <span class="credential-value">{password}</span>
                         </div>
                     </div>
@@ -276,7 +276,7 @@ class EmailService:
                     <div class="warning">
                         <strong>⚠️ Importante:</strong>
                         <ul>
-                            <li>Al iniciar sesión por primera vez, <strong>deberás cambiar tu contraseña</strong>.</li>
+                            <li>Al iniciar sesión por primera vez, <strong>deberás cambiar tu clave de acceso</strong>.</li>
                             <li>No compartas estas credenciales con nadie.</li>
                             <li>Si tienes problemas para acceder, contacta a tu docente.</li>
                         </ul>
@@ -285,7 +285,7 @@ class EmailService:
                     <p>¡Bienvenido al sistema!</p>
                 </div>
                 <div class="footer">
-                    <p>Este es un correo automático del Simulatoral de Química.<br>
+                    <p>Este es un correo automático del Simulador de Química.<br>
                     Por favor no respondas a este mensaje.</p>
                 </div>
             </div>
@@ -302,28 +302,28 @@ class EmailService:
     ) -> str:
         """Genera la plantilla de texto plano para el correo de credenciales."""
         return f"""
-Simulatoral de Química - Credenciales de Acceso
+Simulador de Química - Claves de Acceso
 
 Hola {student_name},
 
-Se han generado tus credenciales de acceso para el Simulatoral de Química.
+Se ha generado tu claves de acceso para el Simulador de Química.
 
 DATOS DE ACCESO:
 ================
 Número de Cuenta: {account_number}
 Usuario: {username}
-Contraseña: {password}
+Clave: {password}
 
 IMPORTANTE:
 ===========
-- Al iniciar sesión por primera vez, deberás cambiar tu contraseña.
+- Al iniciar sesión por primera vez, deberás cambiar tu clave de acceso.
 - No compartas estas credenciales con nadie.
 - Si tienes problemas para acceder, contacta a tu docente.
 
 ¡Bienvenido al sistema!
 
 ---
-Este es un correo automático del Simulatoral de Química.
+Este es un correo automático del Simulador de Química.
 Por favor no respondas a este mensaje.
         """
 

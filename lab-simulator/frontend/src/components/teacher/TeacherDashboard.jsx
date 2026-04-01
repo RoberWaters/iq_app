@@ -55,6 +55,19 @@ export default function TeacherDashboard() {
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
+      // Validar que sea un archivo Excel
+      const validExtensions = ['.xlsx', '.xls'];
+      const fileExtension = selectedFile.name.substring(selectedFile.name.lastIndexOf('.')).toLowerCase();
+      
+      if (!validExtensions.includes(fileExtension)) {
+        setError('Por favor selecciona un archivo Excel (.xlsx o .xls)');
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
       setFile(selectedFile);
       setError(null);
       setResult(null);
@@ -64,7 +77,7 @@ export default function TeacherDashboard() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file) {
-      setError('Por favor selecciona un archivo CSV');
+      setError('Por favor selecciona un archivo Excel');
       return;
     }
 
@@ -114,7 +127,7 @@ export default function TeacherDashboard() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'students_template.csv');
+      link.setAttribute('download', 'students_template.xlsx');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -255,7 +268,7 @@ export default function TeacherDashboard() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-header">
-                <h2>📥 Importar Estudiantes desde CSV</h2>
+                <h2>📥 Importar Estudiantes desde Excel</h2>
                 <button className="modal-close" onClick={closeModal}>×</button>
               </div>
 
@@ -265,7 +278,7 @@ export default function TeacherDashboard() {
                   className="btn btn--outline-primary btn--sm"
                   style={{ marginBottom: '1rem' }}
                 >
-                  📥 Descargar plantilla CSV
+                  📥 Descargar plantilla Excel
                 </button>
 
                 {!result ? (
@@ -286,11 +299,11 @@ export default function TeacherDashboard() {
                     </div>
 
                     <div className="form-group">
-                      <label>Archivo CSV:</label>
+                      <label>Archivo de estudiantes (.xlsx, .xls):</label>
                       <input 
                         ref={fileInputRef}
                         type="file" 
-                        accept=".csv" 
+                        accept=".xlsx,.xls" 
                         onChange={handleFileChange}
                         className="form-file-input"
                       />
@@ -306,7 +319,15 @@ export default function TeacherDashboard() {
                       marginBottom: '1rem',
                       fontSize: '14px'
                     }}>
-                      <strong>💡 Nota:</strong> El CSV debe incluir la columna <strong>email</strong> para que el sistema pueda enviar las credenciales automáticamente a cada estudiante.
+                      <strong>💡 Formato esperado:</strong>
+                      <ul style={{ margin: '8px 0 0 16px', padding: 0 }}>
+                        <li><strong>Cuenta:</strong> Número de cuenta del estudiante</li>
+                        <li><strong>Nombre Completo:</strong> Nombre completo (ej: JUAN CARLOS PEREZ GARCIA)</li>
+                        <li><strong>Correo Institucional:</strong> Correo para envío automático de credenciales</li>
+                      </ul>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#666' }}>
+                        ✅ El sistema detecta automáticamente archivos Excel o HTML del sistema de registro.
+                      </p>
                     </div>
 
                     <button 

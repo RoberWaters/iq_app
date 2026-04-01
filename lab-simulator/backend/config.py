@@ -36,10 +36,10 @@ class Settings:
     # SMTP_USE_TLS=false (usa STARTTLS en su lugar)
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "pruebaingenieria8.@gmail.com")
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "pruebaingenieria8@gmail.com")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "obosgkjoooxazkru")
     SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "false").lower() == "true"
-    FROM_EMAIL: str = os.getenv("FROM_EMAIL", "noreply@unah.edu.hn")
+    FROM_EMAIL: str = os.getenv("FROM_EMAIL", "noreply@simulatoral.edu")
     FROM_NAME: str = os.getenv("FROM_NAME", "Simulador de Química")
 
 
