@@ -16,6 +16,8 @@ class SectionPractice(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     section_id = Column(String, ForeignKey("sections.id"), nullable=False)
     practice_id = Column(Integer, nullable=False)
+    name = Column(String, nullable=True)
+    unit = Column(String, nullable=True)
     open_date = Column(String, nullable=True)
     close_date = Column(String, nullable=True)
     status = Column(String, default="blocked")

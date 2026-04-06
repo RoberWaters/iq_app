@@ -12,6 +12,10 @@ class PracticeSession(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     student_name = Column(String, nullable=True)
+    student_id = Column(String, nullable=True)
+    student_code = Column(String, nullable=True)
+    section_id = Column(String, nullable=True)
+    section_code = Column(String, nullable=True)
     practice_id = Column(Integer, nullable=False)
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)

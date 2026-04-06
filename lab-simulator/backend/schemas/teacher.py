@@ -1,21 +1,18 @@
-from pydantic import BaseModel
-from typing import Optional, Dict
 from datetime import datetime
+from typing import Literal, Optional
 
+from pydantic import BaseModel, Field
 
-# ── Sections ──────────────────────────────────────────────────────────────
 
 class SectionCreate(BaseModel):
-    code: str
-    student_count: int = 0
+    code: str = Field(..., min_length=1, max_length=50)
     next_practice: Optional[str] = None
     next_date: Optional[str] = None
     status: str = "bloqueada"
 
 
 class SectionUpdate(BaseModel):
-    code: Optional[str] = None
-    student_count: Optional[int] = None
+    code: Optional[str] = Field(None, min_length=1, max_length=50)
     next_practice: Optional[str] = None
     next_date: Optional[str] = None
     status: Optional[str] = None
@@ -31,31 +28,60 @@ class SectionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
-
-
-# ── Students ──────────────────────────────────────────────────────────────
 
 class StudentCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=120)
     student_code: int
 
 
 class StudentUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=120)
     student_code: Optional[int] = None
+
+
+class StudentPracticeProgress(BaseModel):
+    section_practice_id: str
+    practice_id: int
+    practice_name: str
+    category: str
+    practice_status: str
+    student_status: Literal["pendiente", "en_progreso", "completada", "calificada"]
+    auto_score: Optional[float] = None
+    manual_score: Optional[float] = None
+    final_score: Optional[float] = None
+    last_session_id: Optional[str] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
 
 class StudentResponse(BaseModel):
     id: str
     name: str
     student_code: int
-    grades: Dict[str, Optional[float]] = {}
+    grades: dict[str, Optional[float]] = Field(default_factory=dict)
+    practices: list[StudentPracticeProgress] = Field(default_factory=list)
 
-    model_config = {"from_attributes": True}
+
+class StudentSessionSummary(BaseModel):
+    id: str
+    practice_id: int
+    practice_name: str
+    status: str
+    current_stage: int
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    total_score: Optional[float] = None
+    feedback: Optional[str] = None
 
 
-# ── Section Practices ─────────────────────────────────────────────────────
+class StudentDetailResponse(BaseModel):
+    id: str
+    name: str
+    student_code: int
+    section_code: str
+    practices: list[StudentPracticeProgress] = Field(default_factory=list)
+    sessions: list[StudentSessionSummary] = Field(default_factory=list)
+
 
 PRACTICE_STATUSES = ("active", "blocked", "closed")
 
@@ -82,10 +108,6 @@ class SectionPracticeResponse(BaseModel):
     close_date: Optional[str] = None
     status: str
 
-    model_config = {"from_attributes": True}
-
-
-# ── Grades ────────────────────────────────────────────────────────────────
 
 class GradeUpsert(BaseModel):
     student_id: str
@@ -98,5 +120,6 @@ class GradeResponse(BaseModel):
     student_id: str
     section_practice_id: str
     score: Optional[float] = None
-
-    model_config = {"from_attributes": True}
+    auto_score: Optional[float] = None
+    manual_score: Optional[float] = None
+    final_score: Optional[float] = None

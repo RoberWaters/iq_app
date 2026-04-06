@@ -1,37 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { getSections, createSection, updateSection, deleteSection, getCatalogPractices } from '../../api/client';
+import {
+  createSection,
+  deleteSection,
+  getSections,
+  updateSection,
+} from '../../api/client';
 import { useAuthStore } from '../../store/useAuthStore';
 import '../../styles/teacher.css';
 
 const STATUS_CONFIG = {
   programada: { label: 'Programada', className: 'badge--warning' },
-  bloqueada:  { label: 'Bloqueada',  className: 'badge--danger' },
+  bloqueada: { label: 'Bloqueada', className: 'badge--danger' },
   habilitada: { label: 'Habilitada', className: 'badge--success' },
 };
 
 const STATUS_OPTIONS = [
-  { value: 'bloqueada',  label: 'Bloqueada' },
+  { value: 'bloqueada', label: 'Bloqueada' },
   { value: 'programada', label: 'Programada' },
   { value: 'habilitada', label: 'Habilitada' },
 ];
 
 const EMPTY_FORM = {
   code: '',
-  student_count: 0,
   next_practice: '',
   next_date: '',
   status: 'bloqueada',
 };
 
-function SectionModal({ initial, catalog, onClose, onSave }) {
-  const isEdit = !!initial?.id;
+function buildTeacherName(profile) {
+  if (!profile) return 'Docente';
+  return [profile.first_name, profile.first_surname].filter(Boolean).join(' ') || 'Docente';
+}
+
+function SectionModal({ initial, onClose, onSave }) {
+  const isEdit = Boolean(initial?.id);
   const [form, setForm] = useState(
     isEdit
       ? {
           code: initial.code,
-          student_count: initial.student_count,
           next_practice: initial.next_practice ?? '',
           next_date: initial.next_date ?? '',
           status: initial.status,
@@ -39,22 +47,22 @@ function SectionModal({ initial, catalog, onClose, onSave }) {
       : EMPTY_FORM
   );
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
 
-  function set(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
+  function setField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError(null);
+  async function handleSubmit(event) {
+    event.preventDefault();
     setSaving(true);
+    setError('');
     try {
       const payload = {
-        ...form,
-        student_count: Number(form.student_count),
-        next_practice: form.next_practice || null,
-        next_date: form.next_date || null,
+        code: form.code.trim(),
+        next_practice: form.next_practice.trim() || null,
+        next_date: form.next_date.trim() || null,
+        status: form.status,
       };
       if (isEdit) {
         await updateSection(initial.id, payload);
@@ -70,7 +78,7 @@ function SectionModal({ initial, catalog, onClose, onSave }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
       <motion.div
         className="modal-box"
         initial={{ opacity: 0, scale: 0.96, y: 8 }}
@@ -79,16 +87,16 @@ function SectionModal({ initial, catalog, onClose, onSave }) {
         transition={{ duration: 0.15 }}
       >
         <h3 className="modal-box__title">
-          {isEdit ? `Editar sección ${initial.code}` : 'Nueva sección'}
+          {isEdit ? `Editar seccion ${initial.code}` : 'Nueva seccion'}
         </h3>
 
         <form className="modal-form" onSubmit={handleSubmit}>
           <div className="modal-form__field">
-            <label className="modal-form__label">Código</label>
+            <label className="modal-form__label">Codigo</label>
             <input
               className="modal-form__input"
               value={form.code}
-              onChange={(e) => set('code', e.target.value)}
+              onChange={(event) => setField('code', event.target.value)}
               placeholder="Ej: 10-B"
               required
               autoFocus
@@ -96,37 +104,22 @@ function SectionModal({ initial, catalog, onClose, onSave }) {
           </div>
 
           <div className="modal-form__field">
-            <label className="modal-form__label"># Estudiantes</label>
+            <label className="modal-form__label">Proxima practica</label>
             <input
               className="modal-form__input"
-              type="number"
-              min={0}
-              value={form.student_count}
-              onChange={(e) => set('student_count', e.target.value)}
+              value={form.next_practice}
+              onChange={(event) => setField('next_practice', event.target.value)}
+              placeholder="Opcional"
             />
           </div>
 
           <div className="modal-form__field">
-            <label className="modal-form__label">Próxima práctica</label>
-            <select
-              className="modal-form__select"
-              value={form.next_practice}
-              onChange={(e) => set('next_practice', e.target.value)}
-            >
-              <option value="">— Sin asignar —</option>
-              {catalog.map((p) => (
-                <option key={p.id} value={p.name}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="modal-form__field">
-            <label className="modal-form__label">Fecha</label>
+            <label className="modal-form__label">Fecha visible</label>
             <input
               className="modal-form__input"
               value={form.next_date}
-              onChange={(e) => set('next_date', e.target.value)}
-              placeholder="Ej: 25/04"
+              onChange={(event) => setField('next_date', event.target.value)}
+              placeholder="Ej: 25/04 08:00"
             />
           </div>
 
@@ -135,10 +128,10 @@ function SectionModal({ initial, catalog, onClose, onSave }) {
             <select
               className="modal-form__select"
               value={form.status}
-              onChange={(e) => set('status', e.target.value)}
+              onChange={(event) => setField('status', event.target.value)}
             >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </div>
@@ -150,7 +143,7 @@ function SectionModal({ initial, catalog, onClose, onSave }) {
               Cancelar
             </button>
             <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>
-              {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Crear sección'}
+              {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear seccion'}
             </button>
           </div>
         </form>
@@ -161,36 +154,39 @@ function SectionModal({ initial, catalog, onClose, onSave }) {
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
-  const logout = useAuthStore((s) => s.logout);
+  const logout = useAuthStore((state) => state.logout);
+  const profile = useAuthStore((state) => state.profile);
   const [search, setSearch] = useState('');
   const [sections, setSections] = useState([]);
-  const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
+  const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  function fetchSections() {
+  async function fetchSections() {
     setLoading(true);
-    getSections()
-      .then(setSections)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    setError('');
+    try {
+      setSections(await getSections());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     fetchSections();
-    getCatalogPractices().then(setCatalog).catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleDelete(id) {
     setDeleting(true);
+    setError('');
     try {
       await deleteSection(id);
       setConfirmId(null);
-      fetchSections();
+      await fetchSections();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -198,9 +194,11 @@ export default function TeacherDashboard() {
     }
   }
 
-  const filtered = sections.filter((s) =>
-    s.code.toLowerCase().includes(search.toLowerCase()) ||
-    (s.next_practice ?? '').toLowerCase().includes(search.toLowerCase())
+  const filteredSections = useMemo(
+    () => sections.filter((section) =>
+      section.code.toLowerCase().includes(search.toLowerCase())
+      || (section.next_practice ?? '').toLowerCase().includes(search.toLowerCase())),
+    [search, sections],
   );
 
   return (
@@ -215,79 +213,73 @@ export default function TeacherDashboard() {
           <div>
             <h1 className="teacher-card__title">
               <span className="teacher-card__icon">&#9879;</span>
-              Simulador de Química
+              Simulador de Quimica
             </h1>
+            <p className="teacher-card__subtitle">Panel docente conectado a datos reales de secciones y practicas.</p>
           </div>
           <button
             className="btn btn--outline-primary btn--sm"
-            onClick={() => { logout(); navigate('/login'); }}
+            onClick={() => {
+              logout();
+              navigate('/login');
+            }}
           >
-            Cerrar Sesión
+            Cerrar sesion
           </button>
         </div>
 
         <div className="teacher-card__body">
           <div className="teacher-card__welcome-row">
-            <h2 className="teacher-card__welcome">Bienvenido, Prof. Martínez</h2>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <h2 className="teacher-card__welcome">Bienvenido, {buildTeacherName(profile)}</h2>
+              <p className="teacher-card__caption">Administra secciones, estudiantes, practicas y resultados.</p>
+            </div>
+            <div className="teacher-card__actions">
               <div className="search-box">
                 <input
                   type="text"
-                  placeholder="Buscar sección..."
+                  placeholder="Buscar seccion..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(event) => setSearch(event.target.value)}
                   className="search-box__input"
                 />
                 <span className="search-box__icon">&#128269;</span>
               </div>
-              <button
-                className="btn btn--primary btn--sm"
-                onClick={() => setModal('create')}
-              >
-                + Nueva Sección
+              <button className="btn btn--primary btn--sm" onClick={() => setModal('create')}>
+                + Nueva seccion
               </button>
             </div>
           </div>
 
-          {error && (
-            <p style={{ color: 'var(--color-danger)', textAlign: 'center', padding: '12px' }}>
-              {error}
-            </p>
-          )}
+          {error && <p className="teacher-error-banner">{error}</p>}
 
           {loading ? (
-            <p style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}>
-              Cargando secciones…
-            </p>
+            <p className="teacher-empty-state">Cargando secciones...</p>
           ) : (
             <table className="t-table">
               <thead>
                 <tr>
-                  <th>Sección</th>
-                  <th># Estudiantes</th>
-                  <th>Próxima Práctica</th>
+                  <th>Seccion</th>
+                  <th>Estudiantes</th>
+                  <th>Proxima practica</th>
                   <th>Estado</th>
-                  <th></th>
-                  <th></th>
+                  <th />
+                  <th />
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((section) => {
-                  const cfg = STATUS_CONFIG[section.status] ?? STATUS_CONFIG.bloqueada;
+                {filteredSections.map((section) => {
+                  const config = STATUS_CONFIG[section.status] ?? STATUS_CONFIG.bloqueada;
                   const confirming = confirmId === section.id;
                   return (
                     <tr key={section.id}>
                       <td className="t-table__bold">{section.code}</td>
                       <td>{section.student_count}</td>
                       <td>
-                        {section.next_practice ?? '—'}
-                        {section.next_date && (
-                          <span className="t-table__date">{section.next_date}</span>
-                        )}
+                        {section.next_practice ?? '-'}
+                        {section.next_date && <span className="t-table__date">{section.next_date}</span>}
                       </td>
-                      <td>
-                        <span className={`badge ${cfg.className}`}>{cfg.label}</span>
-                      </td>
+                      <td><span className={`badge ${config.className}`}>{config.label}</span></td>
                       <td>
                         <button
                           className="btn btn--primary btn--sm"
@@ -299,37 +291,29 @@ export default function TeacherDashboard() {
                       <td>
                         {confirming ? (
                           <div className="confirm-inline">
-                            <span>¿Eliminar?</span>
+                            <span>Eliminar?</span>
                             <button
-                              className="btn btn--sm"
-                              style={{ background: '#b91c1c', color: '#fff' }}
+                              className="btn btn--sm btn--danger"
                               onClick={() => handleDelete(section.id)}
                               disabled={deleting}
                             >
-                              {deleting ? '…' : 'Sí'}
+                              {deleting ? '...' : 'Si'}
                             </button>
-                            <button
-                              className="btn btn--outline-primary btn--sm"
-                              onClick={() => setConfirmId(null)}
-                            >
+                            <button className="btn btn--outline-primary btn--sm" onClick={() => setConfirmId(null)}>
                               No
                             </button>
                           </div>
                         ) : (
                           <div className="t-table__actions">
-                            <button
-                              className="btn btn--icon"
-                              title="Editar"
-                              onClick={() => setModal(section)}
-                            >
-                              ✏️
+                            <button className="btn btn--icon" title="Editar" onClick={() => setModal(section)}>
+                              Editar
                             </button>
                             <button
                               className="btn btn--icon btn--icon-danger"
                               title="Eliminar"
                               onClick={() => setConfirmId(section.id)}
                             >
-                              🗑️
+                              Borrar
                             </button>
                           </div>
                         )}
@@ -337,10 +321,10 @@ export default function TeacherDashboard() {
                     </tr>
                   );
                 })}
-                {filtered.length === 0 && (
+                {filteredSections.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}>
-                      No se encontraron secciones
+                    <td colSpan={6} className="teacher-empty-cell">
+                      No se encontraron secciones.
                     </td>
                   </tr>
                 )}
@@ -354,9 +338,11 @@ export default function TeacherDashboard() {
         {modal && (
           <SectionModal
             initial={modal === 'create' ? null : modal}
-            catalog={catalog}
             onClose={() => setModal(null)}
-            onSave={() => { setModal(null); fetchSections(); }}
+            onSave={() => {
+              setModal(null);
+              fetchSections();
+            }}
           />
         )}
       </AnimatePresence>

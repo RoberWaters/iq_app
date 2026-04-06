@@ -1,3 +1,4 @@
+from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool 
@@ -40,3 +41,38 @@ async def init_db() -> None:
     import models  # noqa: F401  -- ensure all models are loaded before creating tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        if "sqlite" in settings.DATABASE_URL:
+            await conn.run_sync(_run_sqlite_migrations)
+
+
+def _run_sqlite_migrations(sync_conn) -> None:
+    inspector = inspect(sync_conn)
+
+    def has_column(table_name: str, column_name: str) -> bool:
+        return any(col["name"] == column_name for col in inspector.get_columns(table_name))
+
+    column_updates = {
+        "practice_sessions": [
+            ("student_id", "ALTER TABLE practice_sessions ADD COLUMN student_id VARCHAR"),
+            ("student_code", "ALTER TABLE practice_sessions ADD COLUMN student_code VARCHAR"),
+            ("section_id", "ALTER TABLE practice_sessions ADD COLUMN section_id VARCHAR"),
+            ("section_code", "ALTER TABLE practice_sessions ADD COLUMN section_code VARCHAR"),
+        ],
+        "section_practices": [
+            ("name", "ALTER TABLE section_practices ADD COLUMN name VARCHAR"),
+            ("unit", "ALTER TABLE section_practices ADD COLUMN unit VARCHAR"),
+        ],
+        "grades": [
+            ("auto_score", "ALTER TABLE grades ADD COLUMN auto_score FLOAT"),
+            ("manual_score", "ALTER TABLE grades ADD COLUMN manual_score FLOAT"),
+            ("last_session_id", "ALTER TABLE grades ADD COLUMN last_session_id VARCHAR"),
+            ("updated_at", "ALTER TABLE grades ADD COLUMN updated_at DATETIME"),
+        ],
+    }
+
+    for table_name, statements in column_updates.items():
+        if table_name not in inspector.get_table_names():
+            continue
+        for column_name, sql in statements:
+            if not has_column(table_name, column_name):
+                sync_conn.execute(text(sql))

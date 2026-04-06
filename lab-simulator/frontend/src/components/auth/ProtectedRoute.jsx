@@ -69,13 +69,13 @@ const ProtectedRoute = ({
   // Verificar rol de docente
   if (requireTeacher && user?.role !== 'teacher') {
     // Redirigir a prácticas si no es docente
-    return <Navigate to="/practices" replace />;
+    return <Navigate to="/practice" replace />;
   }
 
   // Verificar rol de estudiante
   if (requireStudent && user?.role !== 'student') {
     // Redirigir a prácticas si no es estudiante
-    return <Navigate to="/practices" replace />;
+    return <Navigate to="/practice" replace />;
   }
 
   // Todo bien, renderizar el componente hijo
