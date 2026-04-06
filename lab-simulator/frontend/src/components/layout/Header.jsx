@@ -1,9 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import useSimulatorStore from '../../store/useSimulatorStore';
+import { useAuthStore } from '../../store/useAuthStore';
 
 export default function Header() {
   const navigate = useNavigate();
   const { practiceConfig, reset } = useSimulatorStore();
+  const { isAuthenticated, logout } = useAuthStore();
 
   return (
     <header style={{
@@ -25,11 +27,29 @@ export default function Header() {
         </span>
       </div>
 
-      {practiceConfig && (
-        <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-          Práctica {practiceConfig.number}: {practiceConfig.name}
-        </div>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {practiceConfig && (
+          <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+            Práctica {practiceConfig.number}: {practiceConfig.name}
+          </div>
+        )}
+        {isAuthenticated && (
+          <button
+            onClick={() => { logout(); reset(); navigate('/login'); }}
+            style={{
+              background: 'none',
+              border: '1px solid var(--color-border)',
+              borderRadius: '6px',
+              padding: '4px 12px',
+              fontSize: '0.85rem',
+              color: 'var(--color-text-secondary)',
+              cursor: 'pointer',
+            }}
+          >
+            Cerrar Sesión
+          </button>
+        )}
+      </div>
     </header>
   );
 }
