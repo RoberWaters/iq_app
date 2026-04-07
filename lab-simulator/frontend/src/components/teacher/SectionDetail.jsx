@@ -1,220 +1,480 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  createSectionPractice,
+  createStudent,
+  deleteSectionPractice,
+  deleteStudent,
+  downloadSectionImportExcelTemplate,
+  downloadSectionImportTemplate,
+  exportSectionResults,
+  getCatalogPractices,
+  getSectionPractices,
+  getSectionStudents,
+  getStudentDetail,
+  importSectionStudents,
+  updateSectionPractice,
+  updateStudent,
+  upsertGrade,
+} from '../../api/client';
 import '../../styles/teacher.css';
 
-const MOCK_STUDENTS = [
-  { name: 'Ana López',     id: 1001, labs: [8.5, 7.0] },
-  { name: 'Carlos Méndez', id: 1002, labs: [6.0, null] },
-  { name: 'Laura Pérez',   id: 1003, labs: [9.0, 8.2, 7.5] },
-];
-
-const MOCK_PRACTICES = [
-  {
-    name: 'Titulación Ácido-Base',
-    unit: 'Ácidos y bases',
-    openDate: '25/04 08:00',
-    closeDate: '25/04 23:59',
-    status: 'active',
-  },
-  {
-    name: 'Destilación Simple',
-    unit: 'Mezclas',
-    openDate: '25/04 08:00',
-    closeDate: null,
-    status: 'blocked',
-  },
-  {
-    name: 'Electroquímica',
-    unit: 'Redox',
-    openDate: '27/04 08:00',
-    closeDate: '27/04 23:59',
-    status: 'closed',
-  },
-];
-
-const LAB_NAMES = ['Lab 1: Titulación', 'Lab 2: Destilación', 'Lab 3: Electroquímica'];
-
-const PRACTICE_ACTIONS = {
-  active:  { label: 'Editar',    className: 'btn--outline-primary' },
-  blocked: { label: 'Programar', className: 'btn--warning' },
-  closed:  { label: 'Reabrir',   className: 'btn--outline-primary' },
+const PRACTICE_STATUS_CONFIG = {
+  active: { label: 'Activa', className: 'badge--success' },
+  blocked: { label: 'Bloqueada', className: 'badge--danger' },
+  closed: { label: 'Cerrada', className: 'badge--warning' },
 };
+const STUDENT_STATUS_CONFIG = {
+  pendiente: { label: 'Pendiente', className: 'badge--danger' },
+  en_progreso: { label: 'En progreso', className: 'badge--warning' },
+  completada: { label: 'Completada', className: 'badge--success' },
+  calificada: { label: 'Calificada', className: 'badge--primary-soft' },
+};
+const PRACTICE_STATUSES = [
+  { value: 'blocked', label: 'Bloqueada' },
+  { value: 'active', label: 'Activa' },
+  { value: 'closed', label: 'Cerrada' },
+];
+const FILTERS = ['Todos', 'Pendientes', 'En progreso', 'Completados'];
 
-const FILTERS = ['Todos', 'Pendientes', 'Completados'];
+function StudentFormModal({ initial, onClose, onSave }) {
+  const isEdit = Boolean(initial?.id);
+  const [form, setForm] = useState(isEdit ? { name: initial.name, student_code: initial.student_code } : { name: '', student_code: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({ name: form.name.trim(), student_code: Number(form.student_code) });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <motion.div className="modal-box" initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={{ duration: 0.15 }}>
+        <h3 className="modal-box__title">{isEdit ? 'Editar estudiante' : 'Nuevo estudiante'}</h3>
+        <form className="modal-form" onSubmit={handleSubmit}>
+          <div className="modal-form__field">
+            <label className="modal-form__label">Nombre</label>
+            <input className="modal-form__input" value={form.name} onChange={(event) => setField('name', event.target.value)} required autoFocus />
+          </div>
+          <div className="modal-form__field">
+            <label className="modal-form__label">Codigo</label>
+            <input className="modal-form__input" type="number" value={form.student_code} onChange={(event) => setField('student_code', event.target.value)} required />
+          </div>
+          {error && <p className="modal-form__error">{error}</p>}
+          <div className="modal-form__footer">
+            <button type="button" className="btn btn--outline-primary btn--sm" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>{saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear estudiante'}</button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+function PracticeModal({ initial, catalog, onClose, onSave }) {
+  const isEdit = Boolean(initial);
+  const [form, setForm] = useState(isEdit ? { practice_id: initial.practice_id, open_date: initial.open_date ?? '', close_date: initial.close_date ?? '', status: initial.status } : { practice_id: catalog[0]?.id ?? '', open_date: '', close_date: '', status: 'blocked' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({ practice_id: Number(form.practice_id), open_date: form.open_date.trim() || null, close_date: form.close_date.trim() || null, status: form.status });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <motion.div className="modal-box" initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={{ duration: 0.15 }}>
+        <h3 className="modal-box__title">{isEdit ? `Editar practica: ${initial.name}` : 'Asignar practica'}</h3>
+        <form className="modal-form" onSubmit={handleSubmit}>
+          {!isEdit && (
+            <div className="modal-form__field">
+              <label className="modal-form__label">Practica del catalogo</label>
+              <select className="modal-form__select" value={form.practice_id} onChange={(event) => setField('practice_id', event.target.value)} required>
+                {catalog.map((practice) => <option key={practice.id} value={practice.id}>{practice.name} ({practice.category})</option>)}
+              </select>
+            </div>
+          )}
+          <div className="modal-form__field"><label className="modal-form__label">Apertura</label><input className="modal-form__input" value={form.open_date} onChange={(event) => setField('open_date', event.target.value)} placeholder="Ej: 25/04 08:00" /></div>
+          <div className="modal-form__field"><label className="modal-form__label">Cierre</label><input className="modal-form__input" value={form.close_date} onChange={(event) => setField('close_date', event.target.value)} placeholder="Ej: 25/04 23:59" /></div>
+          <div className="modal-form__field">
+            <label className="modal-form__label">Estado</label>
+            <select className="modal-form__select" value={form.status} onChange={(event) => setField('status', event.target.value)}>
+              {PRACTICE_STATUSES.map((statusOption) => <option key={statusOption.value} value={statusOption.value}>{statusOption.label}</option>)}
+            </select>
+          </div>
+          {error && <p className="modal-form__error">{error}</p>}
+          <div className="modal-form__footer">
+            <button type="button" className="btn btn--outline-primary btn--sm" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>{saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Asignar'}</button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+function ImportModal({ sectionCode, onClose, onImported }) {
+  const fileRef = useRef(null);
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!file) return setError('Selecciona un archivo CSV o Excel.');
+    setLoading(true);
+    setError('');
+    try {
+      const data = await importSectionStudents(sectionCode, file);
+      setResult(data);
+      onImported();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function downloadCredentials() {
+    if (!result?.students?.length) return;
+    const rows = [['Nombre', 'Numero de cuenta', 'Usuario', 'Contrasena'], ...result.students.map((student) => [student.nombre, student.numero_cuenta, student.usuario, student.contrasena])];
+    const csv = rows.map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `credenciales_${sectionCode}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <motion.div className="modal-box modal-box--wide" initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={{ duration: 0.15 }}>
+        <h3 className="modal-box__title">Importar estudiantes - Seccion {sectionCode}</h3>
+        {!result ? (
+          <form className="modal-form" onSubmit={handleSubmit}>
+            <p className="teacher-inline-copy">Puedes subir <strong>CSV, XLSX o XLS</strong>. CSV espera <strong>nombre, apellido, numero_cuenta</strong>; Excel detecta columnas como <strong>Cuenta</strong>, <strong>Nombre Completo</strong> y <strong>Correo Institucional</strong>.</p>
+            <div className="modal-form__footer modal-form__footer--left">
+              <button type="button" className="btn btn--outline-primary btn--sm" onClick={() => downloadSectionImportTemplate(sectionCode).catch((err) => setError(err.message))}>Descargar plantilla</button>
+              <button type="button" className="btn btn--outline-primary btn--sm" onClick={() => downloadSectionImportExcelTemplate(sectionCode).catch((err) => setError(err.message))}>Plantilla Excel</button>
+            </div>
+            <div className="modal-form__field">
+              <label className="modal-form__label">Archivo</label>
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="modal-form__input" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setError(''); }} />
+            </div>
+            {error && <p className="modal-form__error">{error}</p>}
+            <div className="modal-form__footer">
+              <button type="button" className="btn btn--outline-primary btn--sm" onClick={onClose}>Cancelar</button>
+              <button type="submit" className="btn btn--primary btn--sm" disabled={loading}>{loading ? 'Importando...' : 'Importar'}</button>
+            </div>
+          </form>
+        ) : (
+          <div className="modal-form">
+            <div className="teacher-result-row">
+              <span className="teacher-result teacher-result--success">{result.created_count} estudiante(s) creados</span>
+              {result.error_count > 0 && <span className="teacher-result teacher-result--danger">{result.error_count} error(es)</span>}
+            </div>
+            {result.errors.length > 0 && <div className="teacher-errors-list">{result.errors.map((item, index) => <div key={`${item.fila}-${index}`}>Fila {item.fila}: {item.error}</div>)}</div>}
+            {result.students.length > 0 && (
+              <table className="t-table t-table--compact">
+                <thead><tr><th>Nombre</th><th>Cuenta</th><th>Usuario</th><th>Contrasena</th></tr></thead>
+                <tbody>{result.students.map((student, index) => <tr key={`${student.usuario}-${index}`}><td>{student.nombre}</td><td>{student.numero_cuenta}</td><td><code>{student.usuario}</code></td><td><code>{student.contrasena}</code></td></tr>)}</tbody>
+              </table>
+            )}
+            {result.email_results?.length > 0 && (
+              <div className="teacher-email-results">
+                <h4 className="teacher-subtitle">Estado del envio de correos</h4>
+                <div className="teacher-email-results__list">
+                  {result.email_results.map((item, index) => (
+                    <div key={`${item.account_number}-${index}`} className={`teacher-email-results__item ${item.success ? 'teacher-email-results__item--success' : 'teacher-email-results__item--warning'}`}>
+                      <strong>{item.account_number}</strong> {item.email ? `· ${item.email}` : '· sin correo'}<span>{item.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="modal-form__footer">
+              <button type="button" className="btn btn--outline-primary btn--sm" onClick={onClose}>Cerrar</button>
+              {result.students.length > 0 && <button type="button" className="btn btn--primary btn--sm" onClick={downloadCredentials}>Descargar credenciales</button>}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+function StudentDetailModal({ detail, onClose, onSaveGrade }) {
+  const [drafts, setDrafts] = useState({});
+  const [savingId, setSavingId] = useState('');
+  const [error, setError] = useState('');
+  const getDraft = (progress) => drafts[progress.section_practice_id] !== undefined ? drafts[progress.section_practice_id] : progress.manual_score ?? '';
+
+  async function saveGrade(progress) {
+    setSavingId(progress.section_practice_id);
+    setError('');
+    try {
+      await onSaveGrade(progress.section_practice_id, drafts[progress.section_practice_id] ?? progress.manual_score ?? '');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingId('');
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <motion.div className="modal-box modal-box--xl" initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={{ duration: 0.15 }}>
+        <div className="teacher-detail-header">
+          <div><h3 className="modal-box__title">{detail.name}</h3><p className="teacher-inline-copy">Codigo {detail.student_code} · Seccion {detail.section_code}</p></div>
+          <button className="section-close" onClick={onClose} aria-label="Cerrar">&times;</button>
+        </div>
+        {error && <p className="teacher-error-banner">{error}</p>}
+        <div className="teacher-detail-grid">
+          <div>
+            <h4 className="teacher-subtitle">Progreso por practica</h4>
+            <table className="t-table t-table--compact">
+              <thead><tr><th>Practica</th><th>Estado</th><th>Auto</th><th>Manual</th><th>Final</th><th>Guardar</th></tr></thead>
+              <tbody>
+                {detail.practices.map((progress) => {
+                  const config = STUDENT_STATUS_CONFIG[progress.student_status] ?? STUDENT_STATUS_CONFIG.pendiente;
+                  return (
+                    <tr key={progress.section_practice_id}>
+                      <td className="t-table__bold">{progress.practice_name}</td>
+                      <td><span className={`badge ${config.className}`}>{config.label}</span></td>
+                      <td className="mono">{progress.auto_score ?? '-'}</td>
+                      <td><input className="table-input" type="number" step="0.1" value={getDraft(progress)} onChange={(event) => setDrafts((current) => ({ ...current, [progress.section_practice_id]: event.target.value }))} placeholder="-" /></td>
+                      <td className="mono">{progress.final_score ?? '-'}</td>
+                      <td><button className="btn btn--primary btn--sm" onClick={() => saveGrade(progress)} disabled={savingId === progress.section_practice_id}>{savingId === progress.section_practice_id ? '...' : 'Guardar'}</button></td>
+                    </tr>
+                  );
+                })}
+                {detail.practices.length === 0 && <tr><td colSpan={6} className="teacher-empty-cell">No hay practicas asignadas.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h4 className="teacher-subtitle">Historial de sesiones</h4>
+            <div className="teacher-session-list">
+              {detail.sessions.map((session) => (
+                <div key={session.id} className="teacher-session-card">
+                  <div className="teacher-session-card__top"><strong>{session.practice_name}</strong><span className={`badge ${session.status === 'completed' ? 'badge--success' : 'badge--warning'}`}>{session.status}</span></div>
+                  <p className="teacher-inline-copy">Etapa actual: {session.current_stage}</p>
+                  <p className="teacher-inline-copy">Inicio: {new Date(session.started_at).toLocaleString()}</p>
+                  {session.completed_at && <p className="teacher-inline-copy">Fin: {new Date(session.completed_at).toLocaleString()}</p>}
+                  {session.total_score != null && <p className="teacher-inline-copy">Nota automatica: {session.total_score}</p>}
+                  {session.feedback && <p className="teacher-inline-copy">{session.feedback}</p>}
+                </div>
+              ))}
+              {detail.sessions.length === 0 && <p className="teacher-empty-state teacher-empty-state--compact">No hay sesiones registradas.</p>}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function getStudentCompletionState(student) {
+  if (!student.practices.length) return 'Pendientes';
+  if (student.practices.some((item) => item.student_status === 'en_progreso')) return 'En progreso';
+  if (student.practices.every((item) => ['completada', 'calificada'].includes(item.student_status))) return 'Completados';
+  return 'Pendientes';
+}
+
+function formatStudentPracticeCell(progress) {
+  if (!progress) return '-';
+  const config = STUDENT_STATUS_CONFIG[progress.student_status] ?? STUDENT_STATUS_CONFIG.pendiente;
+  const score = progress.final_score ?? progress.auto_score;
+  return <div className="teacher-grade-cell"><span className={`badge ${config.className}`}>{config.label}</span><span className="mono">{score != null ? score.toFixed(1) : '-'}</span></div>;
+}
 
 export default function SectionDetail() {
-  const { sectionId } = useParams();
+  const { sectionId: sectionCode } = useParams();
   const navigate = useNavigate();
   const [tab, setTab] = useState('students');
   const [filter, setFilter] = useState('Todos');
   const [search, setSearch] = useState('');
+  const [students, setStudents] = useState([]);
+  const [practices, setPractices] = useState([]);
+  const [catalog, setCatalog] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [studentModal, setStudentModal] = useState(null);
+  const [practiceModal, setPracticeModal] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
-  const filteredStudents = MOCK_STUDENTS.filter((s) => {
-    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+  async function fetchData() {
+    setLoading(true);
+    setError('');
+    try {
+      const [studentsData, practicesData, catalogData] = await Promise.all([getSectionStudents(sectionCode), getSectionPractices(sectionCode), catalog.length ? Promise.resolve(catalog) : getCatalogPractices()]);
+      setStudents(studentsData);
+      setPractices(practicesData);
+      setCatalog(catalogData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { fetchData(); }, [sectionCode]);
+
+  async function openStudentDetail(studentId) {
+    setError('');
+    try {
+      setDetail(await getStudentDetail(sectionCode, studentId));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleSaveStudent(payload) {
+    if (studentModal?.id) await updateStudent(studentModal.id, payload);
+    else await createStudent(sectionCode, payload);
+    setStudentModal(null);
+    await fetchData();
+  }
+
+  async function handleDeleteStudent(studentId) {
+    await deleteStudent(studentId);
+    setConfirmAction(null);
+    await fetchData();
+  }
+
+  async function handleSavePractice(payload) {
+    if (practiceModal?.id) await updateSectionPractice(practiceModal.id, payload);
+    else await createSectionPractice(sectionCode, payload);
+    setPracticeModal(null);
+    await fetchData();
+  }
+
+  async function handleDeletePractice(practiceId) {
+    await deleteSectionPractice(practiceId);
+    setConfirmAction(null);
+    await fetchData();
+  }
+
+  async function handleSaveGrade(sectionPracticeId, nextValue) {
+    const score = nextValue === '' ? null : Number(nextValue);
+    await upsertGrade({ student_id: detail.id, section_practice_id: sectionPracticeId, score });
+    const nextDetail = await getStudentDetail(sectionCode, detail.id);
+    setDetail(nextDetail);
+    setStudents((current) => current.map((student) => student.id === detail.id ? { ...student, grades: Object.fromEntries(nextDetail.practices.map((item) => [item.section_practice_id, item.final_score])), practices: nextDetail.practices } : student));
+  }
+
+  const filteredStudents = useMemo(() => students.filter((student) => {
+    const matchesSearch = student.name.toLowerCase().includes(search.toLowerCase()) || String(student.student_code).includes(search);
     if (!matchesSearch) return false;
     if (filter === 'Todos') return true;
-    const allDone = s.labs.length === LAB_NAMES.length && s.labs.every((l) => l !== null);
-    return filter === 'Completados' ? allDone : !allDone;
-  });
+    return getStudentCompletionState(student) === filter;
+  }), [filter, search, students]);
 
   return (
-    <motion.div
-      className="teacher-page"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <motion.div className="teacher-page" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="teacher-card teacher-card--wide">
-        {/* Title bar */}
         <div className="teacher-card__header">
-          <h2 className="teacher-card__title">Sección {sectionId}</h2>
-          <button
-            className="section-close"
-            onClick={() => navigate('/teacher')}
-            aria-label="Cerrar"
-          >
-            &times;
-          </button>
+          <div><h2 className="teacher-card__title">Seccion {sectionCode}</h2><p className="teacher-card__caption">Gestion de estudiantes, practicas, notas y progreso real.</p></div>
+          <button className="section-close" onClick={() => navigate('/teacher')} aria-label="Cerrar">&times;</button>
         </div>
-
-        {/* Tabs */}
         <div className="tabs">
-          <button
-            className={`tabs__btn ${tab === 'students' ? 'tabs__btn--active' : ''}`}
-            onClick={() => setTab('students')}
-          >
-            Estudiantes y Notas
-          </button>
-          <button
-            className={`tabs__btn ${tab === 'practices' ? 'tabs__btn--active' : ''}`}
-            onClick={() => setTab('practices')}
-          >
-            Prácticas
-          </button>
+          <button className={`tabs__btn ${tab === 'students' ? 'tabs__btn--active' : ''}`} onClick={() => setTab('students')}>Estudiantes y notas</button>
+          <button className={`tabs__btn ${tab === 'practices' ? 'tabs__btn--active' : ''}`} onClick={() => setTab('practices')}>Practicas</button>
         </div>
-
-        {/* Tab content */}
-        <AnimatePresence mode="wait">
-          {tab === 'students' ? (
-            <motion.div
-              key="students"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="tab-content"
-            >
-              {/* Toolbar */}
-              <div className="toolbar">
-                <div className="toolbar__left">
-                  <input
-                    type="text"
-                    placeholder="Buscar estudiante..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="search-box__input search-box__input--compact"
-                  />
-                  {FILTERS.map((f) => (
-                    <button
-                      key={f}
-                      className={`filter-chip ${filter === f ? 'filter-chip--active' : ''}`}
-                      onClick={() => setFilter(f)}
-                    >
-                      {f === 'Todos' && <span style={{ marginRight: 4 }}>&#128269;</span>}
-                      {f === 'Pendientes' && <span className="filter-dot filter-dot--pending" />}
-                      {f === 'Completados' && <span className="filter-dot filter-dot--completed" />}
-                      {f}
-                    </button>
-                  ))}
+        {error && <p className="teacher-error-banner teacher-error-banner--body">{error}</p>}
+        {loading ? <p className="teacher-empty-state">Cargando datos de la seccion...</p> : (
+          <AnimatePresence mode="wait">
+            {tab === 'students' ? (
+              <motion.div key="students" className="tab-content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                <div className="toolbar">
+                  <div className="toolbar__left">
+                    <input type="text" placeholder="Buscar estudiante..." value={search} onChange={(event) => setSearch(event.target.value)} className="search-box__input search-box__input--compact" />
+                    {FILTERS.map((option) => <button key={option} className={`filter-chip ${filter === option ? 'filter-chip--active' : ''}`} onClick={() => setFilter(option)}>{option}</button>)}
+                  </div>
+                  <div className="toolbar__right">
+                    <button className="btn btn--outline-primary btn--sm" onClick={() => setImportOpen(true)}>Importar CSV</button>
+                    <button className="btn btn--outline-primary btn--sm" onClick={() => exportSectionResults(sectionCode).catch((err) => setError(err.message))}>Exportar</button>
+                    <button className="btn btn--primary btn--sm" onClick={() => setStudentModal('create')}>+ Estudiante</button>
+                  </div>
                 </div>
-                <button className="btn btn--warning btn--sm">Exportar</button>
-              </div>
-
-              {/* Students table */}
-              <table className="t-table">
-                <thead>
-                  <tr>
-                    <th>Estudiante</th>
-                    <th>ID</th>
-                    {LAB_NAMES.map((lab) => (
-                      <th key={lab}>{lab}</th>
-                    ))}
-                    <th>Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStudents.map((student) => (
-                    <tr key={student.id}>
-                      <td className="t-table__bold">{student.name}</td>
-                      <td className="mono">{student.id}</td>
-                      {LAB_NAMES.map((_, i) => (
-                        <td key={i} className="mono">
-                          {student.labs[i] != null ? student.labs[i].toFixed(1) : '---'}
-                        </td>
-                      ))}
-                      <td>
-                        <button className="btn btn--primary btn--sm">Ver detalle</button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredStudents.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={3 + LAB_NAMES.length}
-                        style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)' }}
-                      >
-                        No se encontraron estudiantes
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="practices"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="tab-content"
-            >
-              <table className="t-table">
-                <thead>
-                  <tr>
-                    <th>Práctica</th>
-                    <th>Unidad</th>
-                    <th>Apertura</th>
-                    <th>Cierre</th>
-                    <th>Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {MOCK_PRACTICES.map((p) => {
-                    const action = PRACTICE_ACTIONS[p.status];
-                    return (
-                      <tr key={p.name}>
-                        <td className="t-table__bold">{p.name}</td>
-                        <td>{p.unit}</td>
-                        <td className="mono">{p.openDate}</td>
-                        <td className="mono">
-                          {p.closeDate ?? <span className="badge badge--danger">Bloqueada</span>}
-                        </td>
-                        <td>
-                          <button className={`btn btn--sm ${action.className}`}>
-                            {action.label}
-                          </button>
-                        </td>
+                <table className="t-table">
+                  <thead><tr><th>Estudiante</th><th>Codigo</th>{practices.map((practice) => <th key={practice.id}>{practice.name}</th>)}<th>Acciones</th></tr></thead>
+                  <tbody>
+                    {filteredStudents.map((student) => (
+                      <tr key={student.id}>
+                        <td className="t-table__bold">{student.name}</td>
+                        <td className="mono">{student.student_code}</td>
+                        {practices.map((practice) => <td key={practice.id}>{formatStudentPracticeCell(student.practices.find((item) => item.section_practice_id === practice.id))}</td>)}
+                        <td><div className="t-table__actions"><button className="btn btn--primary btn--sm" onClick={() => openStudentDetail(student.id)}>Ver detalle</button><button className="btn btn--icon" onClick={() => setStudentModal(student)}>Editar</button><button className="btn btn--icon btn--icon-danger" onClick={() => setConfirmAction({ type: 'student', id: student.id, label: student.name })}>Borrar</button></div></td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                    ))}
+                    {filteredStudents.length === 0 && <tr><td colSpan={3 + practices.length} className="teacher-empty-cell">No se encontraron estudiantes.</td></tr>}
+                  </tbody>
+                </table>
+              </motion.div>
+            ) : (
+              <motion.div key="practices" className="tab-content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                <div className="toolbar"><div className="toolbar__left" /><button className="btn btn--primary btn--sm" onClick={() => setPracticeModal('create')}>+ Asignar practica</button></div>
+                <table className="t-table">
+                  <thead><tr><th>Practica</th><th>Categoria</th><th>Apertura</th><th>Cierre</th><th>Estado</th><th>Acciones</th></tr></thead>
+                  <tbody>
+                    {practices.map((practice) => {
+                      const config = PRACTICE_STATUS_CONFIG[practice.status] ?? PRACTICE_STATUS_CONFIG.blocked;
+                      return <tr key={practice.id}><td className="t-table__bold">{practice.name}</td><td>{practice.category}</td><td className="mono">{practice.open_date ?? '-'}</td><td className="mono">{practice.close_date ?? '-'}</td><td><span className={`badge ${config.className}`}>{config.label}</span></td><td><div className="t-table__actions"><button className="btn btn--icon" onClick={() => setPracticeModal(practice)}>Editar</button><button className="btn btn--icon btn--icon-danger" onClick={() => setConfirmAction({ type: 'practice', id: practice.id, label: practice.name })}>Borrar</button></div></td></tr>;
+                    })}
+                    {practices.length === 0 && <tr><td colSpan={6} className="teacher-empty-cell">No hay practicas asignadas.</td></tr>}
+                  </tbody>
+                </table>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
       </div>
+
+      <AnimatePresence>
+        {studentModal && <StudentFormModal initial={studentModal === 'create' ? null : studentModal} onClose={() => setStudentModal(null)} onSave={handleSaveStudent} />}
+        {practiceModal && <PracticeModal initial={practiceModal === 'create' ? null : practiceModal} catalog={catalog} onClose={() => setPracticeModal(null)} onSave={handleSavePractice} />}
+        {importOpen && <ImportModal sectionCode={sectionCode} onClose={() => setImportOpen(false)} onImported={fetchData} />}
+        {detail && <StudentDetailModal detail={detail} onClose={() => setDetail(null)} onSaveGrade={handleSaveGrade} />}
+        {confirmAction && (
+          <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && setConfirmAction(null)}>
+            <motion.div className="modal-box" initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={{ duration: 0.15 }}>
+              <h3 className="modal-box__title">Confirmar eliminacion</h3>
+              <p className="teacher-inline-copy">Se eliminara {confirmAction.label}. Esta accion no se puede deshacer.</p>
+              <div className="modal-form__footer">
+                <button type="button" className="btn btn--outline-primary btn--sm" onClick={() => setConfirmAction(null)}>Cancelar</button>
+                <button type="button" className="btn btn--danger btn--sm" onClick={() => (confirmAction.type === 'student' ? handleDeleteStudent(confirmAction.id).catch((err) => setError(err.message)) : handleDeletePractice(confirmAction.id).catch((err) => setError(err.message)))}>Eliminar</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

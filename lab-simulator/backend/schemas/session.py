@@ -6,11 +6,19 @@ from datetime import datetime
 class SessionCreate(BaseModel):
     practice_id: int
     student_name: Optional[str] = None
+    student_id: Optional[str] = None
+    student_code: Optional[str] = None
+    section_id: Optional[str] = None
+    section_code: Optional[str] = None
 
 
 class SessionResponse(BaseModel):
     id: str
     student_name: Optional[str] = None
+    student_id: Optional[str] = None
+    student_code: Optional[str] = None
+    section_id: Optional[str] = None
+    section_code: Optional[str] = None
     practice_id: int
     started_at: datetime
     completed_at: Optional[datetime] = None
