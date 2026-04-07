@@ -132,3 +132,4 @@ class CSVImportResult(BaseModel):
     created_count: int
     errors: list[dict]
     students: list[StudentCreationResult]
+    email_results: list[dict] = []

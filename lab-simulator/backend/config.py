@@ -1,4 +1,5 @@
 import os
+import secrets
 from typing import Optional
 from dataclasses import dataclass, field
 from typing import List
@@ -12,7 +13,7 @@ class Settings:
     # En producción, debe establecerse mediante variable de entorno
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",
-        "dev-secret-key-do-not-use-in-production-abc123xyz"
+        "dev-secret-key-change-in-production-" + secrets.token_urlsafe(32)
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_DAYS: int = 7
@@ -25,6 +26,13 @@ class Settings:
         "http://localhost:5173",
         "http://localhost:3000",
     ])
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "pruebaingenieria8@gmail.com")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "obosgkjoooxazkru")
+    SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "false").lower() == "true"
+    FROM_EMAIL: str = os.getenv("FROM_EMAIL", "noreply@simulatoral.edu")
+    FROM_NAME: str = os.getenv("FROM_NAME", "Simulador de Quimica")
 
 
 settings = Settings()
