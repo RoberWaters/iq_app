@@ -482,6 +482,40 @@
   background: #fff7f7;
 }
 
+.teacher-email-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.teacher-email-results__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.teacher-email-results__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  font-size: 0.84rem;
+}
+
+.teacher-email-results__item--success {
+  background: #effcf3;
+  color: #166534;
+}
+
+.teacher-email-results__item--warning {
+  background: #fff8e8;
+  color: #92400e;
+}
+
 .teacher-detail-grid {
   display: grid;
   grid-template-columns: 1.25fr 0.95fr;

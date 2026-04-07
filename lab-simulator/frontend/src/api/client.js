@@ -148,5 +148,8 @@ export const importSectionStudents = async (code, file) => {
 export const downloadSectionImportTemplate = (code) =>
   downloadFile(`/teacher/sections/${code}/import-template`, `plantilla_${code}.csv`);
 
+export const downloadSectionImportExcelTemplate = (code) =>
+  downloadFile(`/teacher/sections/${code}/import-template/excel`, `plantilla_${code}.xlsx`);
+
 export const exportSectionResults = (code) =>
   downloadFile(`/teacher/sections/${code}/export`, `section_${code}_results.csv`);

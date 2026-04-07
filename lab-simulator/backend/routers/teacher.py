@@ -37,6 +37,8 @@ from schemas.teacher import (
 )
 from services.auth_service import AuthService
 from services.csv_import_service import CSVImportService
+from services.email_service import EmailService
+from services.excel_import_service import ExcelImportService
 
 router = APIRouter(
     prefix="/teacher",
@@ -587,9 +589,9 @@ async def export_section_results(code: str, db: AsyncSession = Depends(get_db)):
 async def download_section_import_template(code: str):
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["nombre", "apellido", "numero_cuenta", "email"])
-    writer.writerow(["Juan", "Perez", "20241001", "juan.perez@uni.edu"])
-    writer.writerow(["Maria", "Lopez", "20241002", ""])
+    writer.writerow(["first_name", "second_name", "first_surname", "second_surname", "email", "section", "account_number"])
+    writer.writerow(["Juan", "Carlos", "Perez", "Garcia", "juan.perez@uni.edu", code, "20241001"])
+    writer.writerow(["Maria", "", "Lopez", "", "maria.lopez@uni.edu", code, "20241002"])
     return StreamingResponse(
         io.BytesIO(output.getvalue().encode("utf-8")),
         media_type="text/csv",
@@ -597,99 +599,42 @@ async def download_section_import_template(code: str):
     )
 
 
+@router.get("/sections/{code}/import-template/excel")
+async def download_section_import_excel_template(code: str, db: AsyncSession = Depends(get_db)):
+    excel_service = ExcelImportService(db)
+    content = await excel_service.generate_excel_template()
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=plantilla_{code}.xlsx"},
+    )
+
+
 @router.post("/sections/{code}/import-students")
 async def import_students_to_section(code: str, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="El archivo debe ser un CSV")
-
     section = await _section_by_code(code, db)
     content = await file.read()
+    filename = (file.filename or "").lower()
+
+    if filename.endswith((".xlsx", ".xls")):
+        excel_service = ExcelImportService(db)
+        result = await excel_service.import_to_section(file_content=content, filename=file.filename or "", section=section)
+        section.student_count = (section.student_count or 0) + result["created_count"]
+        await db.commit()
+        return result
+
+    if not filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser CSV, XLSX o XLS")
+
     try:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = content.decode("latin-1")
-
-    reader = csv.DictReader(io.StringIO(text))
-    auth_service = AuthService(db)
-    created = []
-    errors = []
-
-    import secrets
-
-    for index, row in enumerate(reader, start=2):
-        nombre = (row.get("nombre") or "").strip()
-        apellido = (row.get("apellido") or "").strip()
-        cuenta = (row.get("numero_cuenta") or "").strip()
-        email = (row.get("email") or "").strip() or None
-
-        if not nombre or not apellido or not cuenta:
-            errors.append({"fila": index, "error": "nombre, apellido y numero_cuenta son obligatorios"})
-            continue
-
-        temp_password = secrets.token_urlsafe(8)
-
-        try:
-            async with db.begin_nested():
-                auth_payload = AuthStudentCreate(
-                    first_name=nombre,
-                    first_surname=apellido,
-                    account_number=cuenta,
-                    email=email,
-                    section=code,
-                    generic_password=temp_password,
-                )
-                _, username, generated_password = await auth_service.create_student(auth_payload)
-
-                try:
-                    student_code = int("".join(filter(str.isdigit, cuenta))) or index
-                except (TypeError, ValueError):
-                    student_code = index
-
-                duplicate = await db.execute(
-                    select(Student).where(
-                        Student.section_id == section.id,
-                        Student.student_code == student_code,
-                    )
-                )
-                if duplicate.scalar_one_or_none():
-                    raise HTTPException(status_code=409, detail="Ya existe un estudiante con ese codigo en la seccion")
-
-                db.add(Student(name=f"{nombre} {apellido}", student_code=student_code, section_id=section.id))
-                await db.flush()
-
-            created.append(
-                {
-                    "nombre": f"{nombre} {apellido}",
-                    "numero_cuenta": cuenta,
-                    "usuario": username,
-                    "contrasena": generated_password,
-                    "email": email or "",
-                }
-            )
-        except IntegrityError as exc:
-            message = str(exc.orig)
-            if "email" in message:
-                error_message = f"El email '{email}' ya esta registrado"
-            elif "account_number" in message:
-                error_message = f"El numero de cuenta '{cuenta}' ya esta registrado"
-            elif "username" in message:
-                error_message = f"El usuario generado para '{nombre} {apellido}' ya existe"
-            else:
-                error_message = "Registro duplicado"
-            errors.append({"fila": index, "error": error_message})
-        except HTTPException as exc:
-            errors.append({"fila": index, "error": exc.detail})
-        except Exception as exc:  # pragma: no cover - defensive fallback
-            errors.append({"fila": index, "error": str(exc)})
-
-    section.student_count = (section.student_count or 0) + len(created)
+    csv_service = CSVImportService(db)
+    result = await csv_service.import_students_to_section(text, section.code, section.id)
+    section.student_count = (section.student_count or 0) + result["created_count"]
     await db.commit()
-    return {
-        "created_count": len(created),
-        "error_count": len(errors),
-        "students": created,
-        "errors": errors,
-    }
+    return result
 
 
 @router.post("/import-students")

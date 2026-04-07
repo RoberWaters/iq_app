@@ -220,7 +220,9 @@ class AuthService:
 
     async def create_teacher(
         self,
-        teacher_data: TeacherCreate
+        teacher_data: TeacherCreate,
+        *,
+        autocommit: bool = True,
     ) -> Tuple[User, str]:
         """Crea un nuevo docente con perfil."""
         # Generar username único
@@ -255,8 +257,11 @@ class AuthService:
         )
         
         self.db.add(teacher_profile)
-        await self.db.commit()
-        await self.db.refresh(user)
+        if autocommit:
+            await self.db.commit()
+            await self.db.refresh(user)
+        else:
+            await self.db.flush()
         
         return user, username
 
@@ -264,7 +269,9 @@ class AuthService:
 
     async def create_student(
         self,
-        student_data: StudentCreate
+        student_data: StudentCreate,
+        *,
+        autocommit: bool = True,
     ) -> Tuple[User, str, str]:
         """Crea un nuevo estudiante con perfil. Retorna (user, username, temp_password)."""
         # Generar username único
@@ -300,7 +307,10 @@ class AuthService:
         )
         
         self.db.add(student_profile)
-        await self.db.commit()
-        await self.db.refresh(user)
+        if autocommit:
+            await self.db.commit()
+            await self.db.refresh(user)
+        else:
+            await self.db.flush()
         
         return user, username, student_data.generic_password

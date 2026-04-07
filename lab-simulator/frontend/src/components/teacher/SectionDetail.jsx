@@ -6,6 +6,7 @@ import {
   createStudent,
   deleteSectionPractice,
   deleteStudent,
+  downloadSectionImportExcelTemplate,
   downloadSectionImportTemplate,
   exportSectionResults,
   getCatalogPractices,
@@ -142,7 +143,7 @@ function ImportModal({ sectionCode, onClose, onImported }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (!file) return setError('Selecciona un archivo CSV.');
+    if (!file) return setError('Selecciona un archivo CSV o Excel.');
     setLoading(true);
     setError('');
     try {
@@ -175,13 +176,14 @@ function ImportModal({ sectionCode, onClose, onImported }) {
         <h3 className="modal-box__title">Importar estudiantes - Seccion {sectionCode}</h3>
         {!result ? (
           <form className="modal-form" onSubmit={handleSubmit}>
-            <p className="teacher-inline-copy">El CSV debe tener las columnas <strong>nombre, apellido, numero_cuenta</strong>. El email es opcional.</p>
+            <p className="teacher-inline-copy">Puedes subir <strong>CSV, XLSX o XLS</strong>. CSV espera <strong>nombre, apellido, numero_cuenta</strong>; Excel detecta columnas como <strong>Cuenta</strong>, <strong>Nombre Completo</strong> y <strong>Correo Institucional</strong>.</p>
             <div className="modal-form__footer modal-form__footer--left">
               <button type="button" className="btn btn--outline-primary btn--sm" onClick={() => downloadSectionImportTemplate(sectionCode).catch((err) => setError(err.message))}>Descargar plantilla</button>
+              <button type="button" className="btn btn--outline-primary btn--sm" onClick={() => downloadSectionImportExcelTemplate(sectionCode).catch((err) => setError(err.message))}>Plantilla Excel</button>
             </div>
             <div className="modal-form__field">
-              <label className="modal-form__label">Archivo CSV</label>
-              <input ref={fileRef} type="file" accept=".csv" className="modal-form__input" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setError(''); }} />
+              <label className="modal-form__label">Archivo</label>
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="modal-form__input" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setError(''); }} />
             </div>
             {error && <p className="modal-form__error">{error}</p>}
             <div className="modal-form__footer">
@@ -201,6 +203,18 @@ function ImportModal({ sectionCode, onClose, onImported }) {
                 <thead><tr><th>Nombre</th><th>Cuenta</th><th>Usuario</th><th>Contrasena</th></tr></thead>
                 <tbody>{result.students.map((student, index) => <tr key={`${student.usuario}-${index}`}><td>{student.nombre}</td><td>{student.numero_cuenta}</td><td><code>{student.usuario}</code></td><td><code>{student.contrasena}</code></td></tr>)}</tbody>
               </table>
+            )}
+            {result.email_results?.length > 0 && (
+              <div className="teacher-email-results">
+                <h4 className="teacher-subtitle">Estado del envio de correos</h4>
+                <div className="teacher-email-results__list">
+                  {result.email_results.map((item, index) => (
+                    <div key={`${item.account_number}-${index}`} className={`teacher-email-results__item ${item.success ? 'teacher-email-results__item--success' : 'teacher-email-results__item--warning'}`}>
+                      <strong>{item.account_number}</strong> {item.email ? `· ${item.email}` : '· sin correo'}<span>{item.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
             <div className="modal-form__footer">
               <button type="button" className="btn btn--outline-primary btn--sm" onClick={onClose}>Cerrar</button>
