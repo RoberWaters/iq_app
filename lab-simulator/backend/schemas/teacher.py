@@ -86,6 +86,9 @@ class StudentDetailResponse(BaseModel):
 PRACTICE_STATUSES = ("active", "blocked", "closed")
 
 
+PRACTICE_STATUSES = ("active", "blocked", "closed")
+
+
 class SectionPracticeCreate(BaseModel):
     practice_id: int
     open_date: Optional[str] = None
