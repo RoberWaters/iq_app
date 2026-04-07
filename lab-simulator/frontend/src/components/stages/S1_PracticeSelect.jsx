@@ -105,7 +105,7 @@ export default function S1_PracticeSelect() {
         <p>Selecciona una practica para comenzar la simulacion</p>
       </div>
 
-      {user?.role === 'teacher' ? (
+      {user?.role === 'teacher' && (
         <div className="identity-panel">
           <div className="identity-panel__copy">
             <h3>Identificacion del estudiante</h3>
@@ -165,30 +165,6 @@ export default function S1_PracticeSelect() {
                 onChange={(e) => setIdentity((current) => ({ ...current, student_name: e.target.value }))}
                 placeholder="Nombre del estudiante"
               />
-            </label>
-          </div>
-        </div>
-      ) : (
-        <div className="identity-panel">
-          <div className="identity-panel__copy">
-            <h3>Sesion del estudiante</h3>
-            <p>
-              La practica se iniciara con tu usuario autenticado para conservar el flujo nuevo de
-              acceso y mantener la sesion asociada a tu perfil.
-            </p>
-          </div>
-          <div className="identity-panel__form">
-            <label className="field">
-              <span>Seccion</span>
-              <input value={identity.section_code || 'Sin seccion'} readOnly />
-            </label>
-            <label className="field">
-              <span>Cuenta</span>
-              <input value={profile?.account_number || ''} readOnly />
-            </label>
-            <label className="field">
-              <span>Nombre visible</span>
-              <input value={identity.student_name} readOnly />
             </label>
           </div>
         </div>
