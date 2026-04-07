@@ -48,6 +48,7 @@ export default function BottleBench({
   onCylinderPress = null,
   // Bottle appearance
   bottleStyle = 'clear',
+  showBottle = true,
   // Precipitate (grows during drain for current step)
   precipitate = null,
   precipitateProgress = 0,
@@ -259,7 +260,7 @@ export default function BottleBench({
   const cylPourActive = isDraining && cylTiltProgress > 0.5 && currentVolume > 0;
 
   // Bottle interactive (not while filling or draining)
-  const bottleListening = !isDraining && cylTiltProgress < 0.01;
+  const bottleListening = showBottle && !isDraining && cylTiltProgress < 0.01;
   // Cylinder interactive (has volume and not currently filling from bottle)
   const cylinderListening = currentVolume > 0 || isDraining;
 
@@ -342,7 +343,7 @@ export default function BottleBench({
 
         {/* ── BOTTLE (upright, hidden while tilting) ─────────────── */}
         <Group
-          opacity={tiltProgress > 0.01 ? 0 : 1}
+          opacity={showBottle && tiltProgress <= 0.01 ? 1 : 0}
           listening={bottleListening}
           onPointerDown={() => setTimeout(() => onBottlePress?.(), 0)}
           onMouseEnter={(e) => setCursor(e, 'grab')}
@@ -504,7 +505,7 @@ export default function BottleBench({
           x={bottlePivotX}
           y={bottlePivotY}
           rotation={tiltDeg}
-          opacity={tiltProgress > 0.01 ? 1 : 0}
+          opacity={showBottle && tiltProgress > 0.01 ? 1 : 0}
           listening={false}
         >
           {/* Body */}
@@ -624,7 +625,7 @@ export default function BottleBench({
           width={bottleNeckW + 4} height={Math.max(1, bottleCapH)}
           fill={bottleCapFill} stroke={bottleCapStrokeFill} strokeWidth={1}
           cornerRadius={[3, 3, 0, 0]}
-          opacity={tiltProgress > 0.01 && !isAmber ? 0.9 : 0}
+          opacity={showBottle && tiltProgress > 0.01 && !isAmber ? 0.9 : 0}
           listening={false}
         />
 
@@ -634,7 +635,7 @@ export default function BottleBench({
           fromY={bottleSpoutY}
           toX={cylX}
           toY={cylSpoutY + 5}
-          isPouring={bottlePourActive}
+          isPouring={showBottle && bottlePourActive}
           color={liquidColor}
         />
 

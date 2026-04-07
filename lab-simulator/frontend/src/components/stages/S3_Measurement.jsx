@@ -601,45 +601,10 @@ export default function S3_Measurement() {
             </Button>
           </div>
 
-          {/* Range slider */}
-          <div>
-            <input
-              type="range"
-              min={0}
-              max={maxVal}
-              step={0.5}
-              value={volume}
-              onChange={(e) => !confirmed && setVolume(parseFloat(e.target.value))}
-              disabled={confirmed}
-              style={{ width: '100%' }}
-            />
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: '0.75rem',
-              color: 'var(--color-text-secondary)',
-            }}>
-              <span>0 mL</span>
-              <span>{maxVal} mL</span>
-            </div>
-          </div>
-
           {/* Reset */}
           <Button onClick={handleReset} variant="outline" disabled={confirmed} style={{ width: '100%' }}>
             Vaciar
           </Button>
-
-          {/* Recommendation hint */}
-          <div style={{
-            padding: '10px 14px',
-            background: '#EFF6FF',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '0.85rem',
-            color: '#1D4ED8',
-            border: '1px solid #BFDBFE',
-          }}>
-            Se recomiendan {measurement.defaultValue || 100} mL
-          </div>
 
           {/* Warning if outside recommended */}
           {volume > 0 && volume !== (measurement.defaultValue || 100) && !confirmed && (

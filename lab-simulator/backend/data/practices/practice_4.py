@@ -34,7 +34,7 @@ PRACTICE_4 = {
 
     # Initial flask state: sample already transferred in S3
     "initialFlaskState": {
-        "fillLevel": 0.08,
+        "fillLevel": 0.10,
         "containerColor": "#DCE8F5",
         "label": "10 mL muestra",
     },
@@ -54,7 +54,7 @@ PRACTICE_4 = {
             "cylinderCapacity": 25,
             "visualAfter": {
                 "containerColor": "#DCE8F5",
-                "fillLevel": 0.14,
+                "fillLevel": 0.20,
                 "label": "Muestra diluida",
             },
         },
@@ -72,7 +72,7 @@ PRACTICE_4 = {
             "liquidColor": "#F0EAD0",
             "visualAfter": {
                 "containerColor": "#DCE8F5",
-                "fillLevel": 0.15,
+                "fillLevel": 0.21,
                 "label": "Medio ácido",
             },
         },
@@ -90,7 +90,7 @@ PRACTICE_4 = {
             "criticalNote": "El AgNO₃ se agrega en EXCESO para asegurar la precipitación completa de los cloruros como AgCl. Se forma un precipitado blanco.",
             "visualAfter": {
                 "containerColor": "#E8E4D8",
-                "fillLevel": 0.40,
+                "fillLevel": 0.71,
                 "label": "Precipitado AgCl blanco",
                 "precipitate": {"type": "granular", "color": "#FFFFFF", "opacity": 1.0},
             },
@@ -104,7 +104,7 @@ PRACTICE_4 = {
             "criticalNote": "El papel aluminio protege la solución de la luz, ya que el AgCl es fotosensible y se oscurece con la luz solar.",
             "visualAfter": {
                 "containerColor": "#E8E4D8",
-                "fillLevel": 0.40,
+                "fillLevel": 0.71,
                 "label": "Protegido de la luz",
                 "precipitate": {"type": "granular", "color": "#FFFFFF", "opacity": 1.0},
                 "foilCovered": True,
@@ -125,7 +125,7 @@ PRACTICE_4 = {
             "criticalNote": "El nitrobenceno recubre el precipitado de AgCl impidiendo que reaccione con el KSCN durante la retrotitulación. El precipitado se ve más compacto, como encapsulado.",
             "visualAfter": {
                 "containerColor": "#E8E0D0",
-                "fillLevel": 0.41,
+                "fillLevel": 0.72,
                 "label": "Precipitado encapsulado",
                 "precipitate": {"type": "compact", "color": "#FAFAFA", "opacity": 0.95},
                 "foilCovered": True,
@@ -141,7 +141,7 @@ PRACTICE_4 = {
             "unit": "mL",
             "visualAfter": {
                 "containerColor": "#FFF8E0",
-                "fillLevel": 0.42,
+                "fillLevel": 0.73,
                 "label": "Listo para titular — beige pálido",
                 "precipitate": {"type": "compact", "color": "#FAFAFA", "opacity": 0.95},
                 "foilCovered": True,
@@ -170,7 +170,7 @@ PRACTICE_4 = {
         "proportionality": "fixed",
 
         # Flask fill level during titration (post-assembly: ~73 mL in 100 mL flask)
-        "flaskFillLevel": 0.48,
+        "flaskFillLevel": 0.73,
 
         "colorTransitions": [
             {"progress": 0.00, "color": "#FFF8E0", "description": "Beige pálido — inicio"},
@@ -239,22 +239,22 @@ PRACTICE_4 = {
             {"id": "measurement", "label": "Medición correcta de la muestra", "weight": 10, "type": "boolean"},
             {"id": "assembly", "label": "Montaje completo y en orden", "weight": 15, "type": "boolean"},
             {
-                "id": "endpoint", "label": "Detección del punto final", "weight": 25, "type": "range",
+                "id": "endpoint", "label": "Detección del punto final", "weight": 35, "type": "range",
                 "scoring": [
-                    {"maxError": 0.2, "score": 25, "feedback": "Excelente: punto final detectado con precisión"},
-                    {"maxError": 0.5, "score": 20, "feedback": "Muy bien: punto final cercano al teórico"},
-                    {"maxError": 1.0, "score": 15, "feedback": "Aceptable: punto final dentro de tolerancia"},
-                    {"maxError": 2.0, "score": 10, "feedback": "Deficiente: punto final alejado del teórico"},
+                    {"maxError": 0.2, "score": 35, "feedback": "Excelente: punto final detectado con precisión"},
+                    {"maxError": 0.5, "score": 28, "feedback": "Muy bien: punto final cercano al teórico"},
+                    {"maxError": 1.0, "score": 21, "feedback": "Aceptable: punto final dentro de tolerancia"},
+                    {"maxError": 2.0, "score": 14, "feedback": "Deficiente: punto final alejado del teórico"},
                     {"maxError": 999, "score": 0, "feedback": "Incorrecto: punto final no detectado"},
                 ],
             },
             {
-                "id": "calculation", "label": "Cálculo correcto del resultado", "weight": 25, "type": "range",
+                "id": "calculation", "label": "Cálculo correcto del resultado", "weight": 15, "type": "range",
                 "scoring": [
-                    {"maxError": 1, "score": 25, "feedback": "Cálculo exacto"},
-                    {"maxError": 2, "score": 20, "feedback": "Cálculo con error menor al 2%"},
-                    {"maxError": 5, "score": 15, "feedback": "Cálculo con error menor al 5%"},
-                    {"maxError": 10, "score": 5, "feedback": "Cálculo con error significativo"},
+                    {"maxError": 1, "score": 15, "feedback": "Cálculo exacto"},
+                    {"maxError": 2, "score": 12, "feedback": "Cálculo con error menor al 2%"},
+                    {"maxError": 5, "score": 9, "feedback": "Cálculo con error menor al 5%"},
+                    {"maxError": 10, "score": 3, "feedback": "Cálculo con error significativo"},
                     {"maxError": 999, "score": 0, "feedback": "Cálculo incorrecto"},
                 ],
             },

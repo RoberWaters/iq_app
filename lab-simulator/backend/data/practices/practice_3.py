@@ -36,7 +36,7 @@ PRACTICE_3 = {
     # The sample is already in the flask from S3. The initial flask state
     # reflects the transferred sample.
     "initialFlaskState": {
-        "fillLevel": 0.14,
+        "fillLevel": 0.20,
         "containerColor": "#F8F8FF",
         "label": "10 mL muestra",
     },
@@ -53,7 +53,7 @@ PRACTICE_3 = {
             "criticalNote": "El K₂CrO₄ actúa como indicador: al agotarse los Cl⁻, el exceso de Ag⁺ precipita como Ag₂CrO₄ (rojo ladrillo), marcando el punto final.",
             "visualAfter": {
                 "containerColor": "#FFE066",
-                "fillLevel": 0.18,
+                "fillLevel": 0.21,
                 "label": "Listo para titular — amarillo",
             },
         },
@@ -80,7 +80,7 @@ PRACTICE_3 = {
         "proportionality": "direct",
 
         # Flask fill level during titration (sample + indicator ≈ 11 mL in 50 mL flask)
-        "flaskFillLevel": 0.22,
+        "flaskFillLevel": 0.54,
 
         "colorTransitions": [
             {"progress": 0.00, "color": "#FFE066", "description": "Amarillo — indicador K₂CrO₄"},
@@ -184,26 +184,26 @@ PRACTICE_3 = {
             {
                 "id": "endpoint",
                 "label": "Detección del punto final",
-                "weight": 25,
+                "weight": 35,
                 "type": "range",
                 "scoring": [
-                    {"maxError": 0.2, "score": 25, "feedback": "Excelente: punto final detectado con precisión"},
-                    {"maxError": 0.5, "score": 20, "feedback": "Muy bien: punto final cercano al teórico"},
-                    {"maxError": 1.0, "score": 15, "feedback": "Aceptable: punto final dentro de tolerancia"},
-                    {"maxError": 2.0, "score": 10, "feedback": "Deficiente: punto final alejado del teórico"},
+                    {"maxError": 0.2, "score": 35, "feedback": "Excelente: punto final detectado con precisión"},
+                    {"maxError": 0.5, "score": 28, "feedback": "Muy bien: punto final cercano al teórico"},
+                    {"maxError": 1.0, "score": 21, "feedback": "Aceptable: punto final dentro de tolerancia"},
+                    {"maxError": 2.0, "score": 14, "feedback": "Deficiente: punto final alejado del teórico"},
                     {"maxError": 999, "score": 0, "feedback": "Incorrecto: punto final no detectado"},
                 ],
             },
             {
                 "id": "calculation",
                 "label": "Cálculo correcto del resultado",
-                "weight": 25,
+                "weight": 15,
                 "type": "range",
                 "scoring": [
-                    {"maxError": 1, "score": 25, "feedback": "Cálculo exacto"},
-                    {"maxError": 2, "score": 20, "feedback": "Cálculo con error menor al 2%"},
-                    {"maxError": 5, "score": 15, "feedback": "Cálculo con error menor al 5%"},
-                    {"maxError": 10, "score": 5, "feedback": "Cálculo con error significativo"},
+                    {"maxError": 1, "score": 15, "feedback": "Cálculo exacto"},
+                    {"maxError": 2, "score": 12, "feedback": "Cálculo con error menor al 2%"},
+                    {"maxError": 5, "score": 9, "feedback": "Cálculo con error menor al 5%"},
+                    {"maxError": 10, "score": 3, "feedback": "Cálculo con error significativo"},
                     {"maxError": 999, "score": 0, "feedback": "Cálculo incorrecto"},
                 ],
             },

@@ -59,20 +59,25 @@ def validate_student_calculation(practice_id, recorded_volume, measured_value, s
     else:
         correct = 0.0
 
-    # Theoretical result uses the practice's reference expected values
+    # Compare against the result recomputed from the student's actual inputs,
+    # NOT against the practice's standard reference value. This way any valid
+    # (recorded_volume, measured_value) combination is graded on whether the
+    # student applied the formula correctly — not on whether they used the
+    # textbook standard amounts.
+    reference_for_grading = correct
     theoretical = calc.get("expectedResult", correct)
 
-    if theoretical == 0:
+    if reference_for_grading == 0:
         percent_error = 0.0
     else:
-        percent_error = abs(student_result - theoretical) / theoretical * 100
+        percent_error = abs(student_result - reference_for_grading) / reference_for_grading * 100
 
     is_within = percent_error <= tolerance
 
     if is_within:
         feedback = f"Correcto. Tu resultado ({student_result:.2f}) está dentro del {tolerance}% de tolerancia. Error: {percent_error:.2f}%."
     else:
-        feedback = f"Tu resultado ({student_result:.2f}) difiere del valor teórico ({theoretical:.2f}) con un error de {percent_error:.2f}%."
+        feedback = f"Tu resultado ({student_result:.2f}) difiere del valor esperado ({reference_for_grading:.2f}) con un error de {percent_error:.2f}%."
 
     return {
         "correct_result": round(correct, 2),

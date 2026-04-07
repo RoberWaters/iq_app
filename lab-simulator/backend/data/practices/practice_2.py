@@ -45,7 +45,7 @@ PRACTICE_2 = {
             "action": "weigh_and_transfer",
             "description": "Transferir la grasa pesada al matraz de 250 mL",
             "visualAfter": {
-                "fillLevel": 0.04,
+                "fillLevel": 0.01,
                 "containerColor": "#FFFDE0",
                 "label": "Grasa en matraz",
                 "condenserOn": False,
@@ -61,7 +61,7 @@ PRACTICE_2 = {
             "unit": "mL",
             "criticalNote": "El KOH se agrega en exceso. Todo el KOH que NO reaccione con la grasa será valorado con HCl en la etapa de titulación.",
             "visualAfter": {
-                "fillLevel": 0.22,
+                "fillLevel": 0.10,
                 "containerColor": "#F4F8F4",
                 "label": "Grasa + KOH 0.50 M",
                 "condenserOn": False,
@@ -75,7 +75,7 @@ PRACTICE_2 = {
             "instrument": "COND-AHL",
             "criticalNote": "El condensador evita la pérdida de disolvente por evaporación durante el calentamiento y devuelve los vapores condensados al matraz.",
             "visualAfter": {
-                "fillLevel": 0.22,
+                "fillLevel": 0.10,
                 "containerColor": "#F4F8F4",
                 "label": "Condensador instalado",
                 "condenserOn": True,
@@ -88,7 +88,7 @@ PRACTICE_2 = {
             "description": "Calentar a reflujo durante 30 minutos para completar la saponificación",
             "criticalNote": "El reflujo permite que el KOH saponifique completamente los ésteres de la grasa. El tiempo es crítico para la reacción completa.",
             "visualAfter": {
-                "fillLevel": 0.22,
+                "fillLevel": 0.10,
                 "containerColor": "#FFFCE8",
                 "label": "Saponificación completa",
                 "condenserOn": True,
@@ -100,7 +100,7 @@ PRACTICE_2 = {
             "action": "cool",
             "description": "Retirar el calor y dejar enfriar a temperatura ambiente",
             "visualAfter": {
-                "fillLevel": 0.22,
+                "fillLevel": 0.10,
                 "containerColor": "#F0F8F0",
                 "label": "Matraz frío",
                 "condenserOn": False,
@@ -113,7 +113,7 @@ PRACTICE_2 = {
             "description": "Agregar unas gotas de fenolftaleína como indicador ácido-base",
             "reagent": "IND-FENOL",
             "visualAfter": {
-                "fillLevel": 0.22,
+                "fillLevel": 0.10,
                 "containerColor": "#E91E8C",
                 "label": "Listo para titular — fucsia",
                 "condenserOn": False,
@@ -154,7 +154,7 @@ PRACTICE_2 = {
             "GRASA-G3": 18.20,
         },
 
-        "flaskFillLevel": 0.22,
+        "flaskFillLevel": 0.18,
 
         "colorTransitions": [
             {"progress": 0.00, "color": "#E91E8C", "description": "Fucsia intenso — KOH en exceso"},
@@ -215,22 +215,22 @@ PRACTICE_2 = {
             {"id": "measurement",  "label": "Pesada correcta de la muestra",             "weight": 10, "type": "boolean"},
             {"id": "assembly",     "label": "Montaje y reflujo completados en orden",    "weight": 15, "type": "boolean"},
             {
-                "id": "endpoint", "label": "Detección del punto final",                  "weight": 25, "type": "range",
+                "id": "endpoint", "label": "Detección del punto final",                  "weight": 35, "type": "range",
                 "scoring": [
-                    {"maxError": 0.2, "score": 25, "feedback": "Excelente: punto final detectado con precisión"},
-                    {"maxError": 0.5, "score": 20, "feedback": "Muy bien: punto final cercano al teórico"},
-                    {"maxError": 1.0, "score": 15, "feedback": "Aceptable: punto final dentro de tolerancia"},
-                    {"maxError": 2.0, "score": 10, "feedback": "Deficiente: punto final alejado del teórico"},
+                    {"maxError": 0.2, "score": 35, "feedback": "Excelente: punto final detectado con precisión"},
+                    {"maxError": 0.5, "score": 28, "feedback": "Muy bien: punto final cercano al teórico"},
+                    {"maxError": 1.0, "score": 21, "feedback": "Aceptable: punto final dentro de tolerancia"},
+                    {"maxError": 2.0, "score": 14, "feedback": "Deficiente: punto final alejado del teórico"},
                     {"maxError": 999, "score": 0,  "feedback": "Incorrecto: punto final no detectado"},
                 ],
             },
             {
-                "id": "calculation", "label": "Cálculo correcto del IS",                "weight": 25, "type": "range",
+                "id": "calculation", "label": "Cálculo correcto del IS",                "weight": 15, "type": "range",
                 "scoring": [
-                    {"maxError": 1,  "score": 25, "feedback": "Cálculo exacto"},
-                    {"maxError": 2,  "score": 20, "feedback": "Cálculo con error menor al 2%"},
-                    {"maxError": 5,  "score": 15, "feedback": "Cálculo con error menor al 5%"},
-                    {"maxError": 10, "score": 5,  "feedback": "Cálculo con error significativo"},
+                    {"maxError": 1,  "score": 15, "feedback": "Cálculo exacto"},
+                    {"maxError": 2,  "score": 12, "feedback": "Cálculo con error menor al 2%"},
+                    {"maxError": 5,  "score": 9,  "feedback": "Cálculo con error menor al 5%"},
+                    {"maxError": 10, "score": 3,  "feedback": "Cálculo con error significativo"},
                     {"maxError": 999,"score": 0,  "feedback": "Cálculo incorrecto"},
                 ],
             },

@@ -47,8 +47,11 @@ export default function useAssembly(measuredValue = 100, maxCapacity = 250) {
   const animTimeout = useRef(null);
   const rafRef = useRef(null);
   const erlFillRef = useRef(0);
+  const drainRafRef = useRef(null);
+  const drainDelayRef = useRef(null);
+  const cylLevelRef = useRef(measuredValue);
 
-  const maxFill = 0.65;
+  const maxFill = 1.0;
 
   const updateFill = useCallback((val) => {
     erlFillRef.current = val;
@@ -96,6 +99,48 @@ export default function useAssembly(measuredValue = 100, maxCapacity = 250) {
     rafRef.current = requestAnimationFrame(animate);
   }, [isAnimating, currentSubStep, pendingAdvance, measuredValue, maxCapacity, updateFill]);
 
+  // Sub-step 1: Hold-to-drain cylinder into erlenmeyer (alternative to pourWater)
+  const holdPourWater = useCallback(() => {
+    if (currentSubStep !== 1 || pendingAdvance || drainRafRef.current || drainDelayRef.current) return;
+    const drainRate = Math.max(8, measuredValue / 5); // mL/s
+    const targetFillTotal = (measuredValue / maxCapacity) * maxFill;
+    // Wait for the cylinder tilt animation to bring the spout over the flask mouth
+    drainDelayRef.current = setTimeout(() => {
+      drainDelayRef.current = null;
+      let lastTs = null;
+      const tick = (ts) => {
+        if (lastTs === null) lastTs = ts;
+        const dt = (ts - lastTs) / 1000;
+        lastTs = ts;
+        const next = Math.max(0, cylLevelRef.current - drainRate * dt);
+        cylLevelRef.current = next;
+        setCylinderLevel(next);
+        const drained = measuredValue - next;
+        const newFill = (drained / measuredValue) * targetFillTotal;
+        updateFill(newFill);
+        if (next <= 0) {
+          drainRafRef.current = null;
+          setErlenmeyerColor('#D6E8F5');
+          setPendingAdvance(true);
+          return;
+        }
+        drainRafRef.current = requestAnimationFrame(tick);
+      };
+      drainRafRef.current = requestAnimationFrame(tick);
+    }, 650);
+  }, [currentSubStep, pendingAdvance, measuredValue, maxCapacity, updateFill]);
+
+  const stopPourWater = useCallback(() => {
+    if (drainDelayRef.current) {
+      clearTimeout(drainDelayRef.current);
+      drainDelayRef.current = null;
+    }
+    if (drainRafRef.current) {
+      cancelAnimationFrame(drainRafRef.current);
+      drainRafRef.current = null;
+    }
+  }, []);
+
   // Confirm advance (user clicks "Continuar") — works for sub-step 1→2 and 2→3
   const confirmAdvance = useCallback(() => {
     if (!pendingAdvance) return;
@@ -107,7 +152,7 @@ export default function useAssembly(measuredValue = 100, maxCapacity = 250) {
   const completeBuffer = useCallback((amount, targetFillLevel) => {
     if (currentSubStep !== 2) return;
     setBufferAmount(amount);
-    const newFill = targetFillLevel || Math.min(maxFill, erlFillRef.current + (amount / maxCapacity) * maxFill * 0.3);
+    const newFill = targetFillLevel || Math.min(maxFill, erlFillRef.current + amount / maxCapacity);
     updateFill(newFill);
     setErlenmeyerColor('#D0E0EE');
     setMixedColor('#D0E0EE');
@@ -209,17 +254,24 @@ export default function useAssembly(measuredValue = 100, maxCapacity = 250) {
     if (animTimeout.current) clearTimeout(animTimeout.current);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (mixingRafRef.current) cancelAnimationFrame(mixingRafRef.current);
+    if (drainRafRef.current) cancelAnimationFrame(drainRafRef.current);
+    if (drainDelayRef.current) clearTimeout(drainDelayRef.current);
+    drainRafRef.current = null;
+    drainDelayRef.current = null;
   }, []);
 
   const reset = useCallback(() => {
     if (animTimeout.current) clearTimeout(animTimeout.current);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (mixingRafRef.current) cancelAnimationFrame(mixingRafRef.current);
+    if (drainRafRef.current) cancelAnimationFrame(drainRafRef.current);
     animTimeout.current = null;
     rafRef.current = null;
     mixingRafRef.current = null;
     mixingStartRef.current = null;
+    drainRafRef.current = null;
     erlFillRef.current = 0;
+    cylLevelRef.current = measuredValue;
     setCurrentSubStep(1);
     setIsAnimating(false);
     setErlenmeyerFill(0);
@@ -249,6 +301,8 @@ export default function useAssembly(measuredValue = 100, maxCapacity = 250) {
     completed,
     pendingAdvance,
     pourWater,
+    holdPourWater,
+    stopPourWater,
     confirmAdvance,
     completeBuffer,
     addIndicatorDrop,

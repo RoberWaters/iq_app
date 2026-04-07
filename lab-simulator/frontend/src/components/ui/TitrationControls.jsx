@@ -5,7 +5,7 @@ export default function TitrationControls({ onRecord }) {
   const {
     volumeAdded, currentColor, maxBuretteVolume,
     handleDrop, startStream, stopStream,
-    isDropping, isPastEndpoint,
+    isDropping,
     dropVolume, streamVolume,
   } = useTitration();
 
@@ -70,19 +70,6 @@ export default function TitrationControls({ onRecord }) {
           border: '1px solid var(--color-border)',
         }} />
       </div>
-
-      {isPastEndpoint && (
-        <div style={{
-          padding: '12px',
-          background: '#FEF3C7',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '0.85rem',
-          color: '#92400E',
-          border: '1px solid #FDE68A',
-        }}>
-          El color ya cambió hace un momento...
-        </div>
-      )}
 
       {/* Record button */}
       <Button onClick={onRecord} variant="success" size="lg" style={{ width: '100%' }}>

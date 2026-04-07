@@ -23,7 +23,7 @@ function StandItem({ item, selected, onAdd }) {
       layout
     >
       <span className="stand-item-icon">
-        <LabIcon name={iconName} size={22} />
+        <LabIcon name={iconName} size={32} />
       </span>
       <span className="stand-item-name">{item.name}</span>
       {selected && <span className="stand-item-check">{'✓'}</span>}

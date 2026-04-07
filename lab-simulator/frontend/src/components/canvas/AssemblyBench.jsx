@@ -221,14 +221,10 @@ export default function AssemblyBench({
               fontFamily="IBM Plex Sans" width={90} align="center"
             />
 
-            {/* GraduatedCylinder — draggable, hidden while pouring */}
+            {/* GraduatedCylinder — static (drained via hold button in panel) */}
             <Group
               x={0} y={0}
-              opacity={isAnimating ? 0 : 1}
-              draggable={currentStep === 2 && !isAnimating}
-              {...(currentStep === 2 && !isAnimating
-                ? makeDragHandlers(cylCenterX, cylCenterY, onPourWater)
-                : {})}
+              opacity={1}
             >
               <GraduatedCylinder
                 x={leftX} y={largeCylY}
@@ -236,7 +232,7 @@ export default function AssemblyBench({
                 currentVolume={cylinderVolume}
               />
               <Text
-                x={leftX - 30} y={benchY - 25}
+                x={leftX - 30} y={benchY + 8}
                 text="Probeta" fontSize={11} fill="#64748B"
                 fontFamily="IBM Plex Sans" width={60} align="center"
               />
@@ -263,7 +259,7 @@ export default function AssemblyBench({
               x={leftX + 40} y={erlenmeyerY - 20}
               text="Arrastra la probeta al Erlenmeyer →"
               fontSize={12} fill="#3B82F6"
-              opacity={currentStep === 2 && !isAnimating ? 0.8 : 0}
+              opacity={0}
               fontFamily="IBM Plex Sans" width={180}
             />
 

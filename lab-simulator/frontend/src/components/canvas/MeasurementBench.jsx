@@ -27,7 +27,7 @@ export default function MeasurementBench({ width = 400, height = 450, currentVol
 
   // --- Layout constants ---
   const centerX = width / 2;
-  const cylY = 80;
+  const cylY = height - 30 - 10 - 280; // bench top − base − tubeHeight
   const tubeHeight = 280;
 
   // Faucet geometry
@@ -254,7 +254,7 @@ export default function MeasurementBench({ width = 400, height = 450, currentVol
 
         {/* Label */}
         <Text
-          x={centerX - 60} y={height - 55}
+          x={centerX - 60} y={height - 18}
           text={`Probeta ${maxVolume} mL`}
           fontSize={12} fill="#64748B"
           fontFamily="IBM Plex Sans"

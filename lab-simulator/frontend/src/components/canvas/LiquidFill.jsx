@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { Line } from 'react-konva';
 import Konva from 'konva';
 
@@ -31,7 +31,9 @@ export default function LiquidFill({
   const halfBody = bodyWidth / 2;
   const halfNeck = neckWidth / 2;
   const totalHeight = neckHeight + bodyHeight;
-  const liquidTop = totalHeight * (1 - fillLevel);
+  // fillLevel is interpreted as fraction of BODY capacity (the neck does not hold
+  // liquid in normal use). This keeps the surface aligned with the body graduations.
+  const liquidTop = neckHeight + bodyHeight * (1 - fillLevel);
 
   const getWidthAtY = useCallback((yPos) => {
     if (yPos <= neckHeight) return halfNeck;
@@ -133,10 +135,15 @@ export default function LiquidFill({
     };
   }, [isStirring, stirSpeed, buildPoints]);
 
+  // Stable static points reference — only changes when geometry changes, not on color/render churn.
+  // Without this, every parent re-render produces a new array, react-konva reapplies it,
+  // and the imperative wave gets snapped back to flat → flicker.
+  const staticPoints = useMemo(() => buildPoints(null), [buildPoints]);
+
   return (
     <Line
       ref={lineRef}
-      points={buildPoints(null)}
+      points={staticPoints}
       fill={color}
       opacity={fillLevel > 0 ? 0.75 : 0}
       closed

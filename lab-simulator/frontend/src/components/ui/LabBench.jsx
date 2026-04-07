@@ -1,23 +1,19 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Stage, Layer, Line, Rect, Text, Group, Image } from 'react-konva';
+import { Stage, Layer, Line, Ellipse, Text, Group, Image } from 'react-konva';
 import { useLabIconImage } from './labIconKonva';
 
-const ICON_SIZE = 56;
-const ITEM_W = 88;
-const ITEM_H = 96;
-const ICON_Y = 6;
-const LABEL_Y = ICON_Y + ICON_SIZE + 3;
-const LABEL_H = ITEM_H - LABEL_Y - 4;
-
-const INST_BG = '#EFF6FF';
-const INST_STROKE = '#93C5FD';
-const REAG_BG = '#F0FDF4';
-const REAG_STROKE = '#86EFAC';
+// Bench items render as standalone instruments (no card frame).
+// The SVG illustrations are rendered large enough to read details
+// (graduations, labels, glassware shape), with a soft ground shadow
+// underneath to anchor them to the table surface.
+const ICON_SIZE = 110;
+const ITEM_W = 120;
+const ITEM_H = 140;
+const ICON_Y = 8;
+const LABEL_Y = ICON_Y + ICON_SIZE + 4;
+const LABEL_H = ITEM_H - LABEL_Y - 2;
 
 function BenchItem({ item, onRemove, onDragEnd }) {
-  const isInstrument = item.kind === 'instrument';
-  const bg = isInstrument ? INST_BG : REAG_BG;
-  const stroke = isInstrument ? INST_STROKE : REAG_STROKE;
   const iconImage = useLabIconImage(item.iconKey, ICON_SIZE);
 
   return (
@@ -30,20 +26,17 @@ function BenchItem({ item, onRemove, onDragEnd }) {
         onDragEnd(item.id, e.target.x(), e.target.y());
       }}
     >
-      {/* Card background */}
-      <Rect
-        width={ITEM_W}
-        height={ITEM_H}
-        fill={bg}
-        stroke={stroke}
-        strokeWidth={1.5}
-        cornerRadius={8}
-        shadowColor="rgba(0,0,0,0.12)"
-        shadowBlur={6}
-        shadowOffsetY={2}
+      {/* Soft ground shadow — anchors the instrument to the table */}
+      <Ellipse
+        x={ITEM_W / 2}
+        y={ICON_Y + ICON_SIZE - 4}
+        radiusX={ICON_SIZE * 0.42}
+        radiusY={6}
+        fill="rgba(15, 23, 42, 0.18)"
+        listening={false}
       />
 
-      {/* Large icon — centered horizontally */}
+      {/* Instrument illustration */}
       <Image
         x={(ITEM_W - ICON_SIZE) / 2}
         y={ICON_Y}
@@ -51,22 +44,27 @@ function BenchItem({ item, onRemove, onDragEnd }) {
         height={ICON_SIZE}
         image={iconImage}
         opacity={iconImage ? 1 : 0}
+        shadowColor="rgba(0, 0, 0, 0.25)"
+        shadowBlur={4}
+        shadowOffsetY={2}
+        shadowOpacity={0.5}
       />
 
       {/* Name label below */}
       <Text
-        x={4}
+        x={2}
         y={LABEL_Y}
-        width={ITEM_W - 8}
+        width={ITEM_W - 4}
         height={LABEL_H}
         text={item.name}
-        fontSize={9.5}
+        fontSize={10.5}
+        fontStyle="500"
         fontFamily="'IBM Plex Sans', sans-serif"
-        fill="#334155"
+        fill="#1E293B"
         align="center"
         verticalAlign="top"
         wrap="word"
-        lineHeight={1.15}
+        lineHeight={1.2}
       />
     </Group>
   );

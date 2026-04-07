@@ -10,10 +10,10 @@ import '../../styles/stages.css';
 
 // Placement grid: items get arranged in rows on the table
 function nextPosition(existingItems, canvasWidth) {
-  const itemW = 88;
-  const itemH = 96;
-  const padX = 14;
-  const padY = 12;
+  const itemW = 120;
+  const itemH = 140;
+  const padX = 8;
+  const padY = 6;
   const startX = 30;
   const startY = 20;
   const cols = Math.max(1, Math.floor((canvasWidth - startX * 2 + padX) / (itemW + padX)));

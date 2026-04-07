@@ -29,7 +29,7 @@ PRACTICE_5 = {
         "range": [10, 250],
         "unit": "mL",
         "label": "Volumen de agua de la llave",
-        "instruction": "Medir el volumen de agua de la llave en la probeta de 250 mL (se recomiendan 100 mL)",
+        "instruction": "Medir el volumen de agua de la llave en la probeta de 250 mL",
     },
 
     # Stage 4: Assembly
@@ -172,22 +172,22 @@ PRACTICE_5 = {
             {"id": "measurement", "label": "Medición correcta de la muestra", "weight": 10, "type": "boolean"},
             {"id": "assembly", "label": "Montaje completo y en orden", "weight": 15, "type": "boolean"},
             {
-                "id": "endpoint", "label": "Detección del punto final", "weight": 25, "type": "range",
+                "id": "endpoint", "label": "Detección del punto final", "weight": 35, "type": "range",
                 "scoring": [
-                    {"maxError": 0.1, "score": 25, "feedback": "Excelente: punto final detectado con precisión"},
-                    {"maxError": 0.3, "score": 20, "feedback": "Muy bien: punto final cercano al teórico"},
-                    {"maxError": 0.5, "score": 15, "feedback": "Aceptable: punto final dentro de tolerancia"},
-                    {"maxError": 1.0, "score": 10, "feedback": "Deficiente: punto final alejado del teórico"},
+                    {"maxError": 0.1, "score": 35, "feedback": "Excelente: punto final detectado con precisión"},
+                    {"maxError": 0.3, "score": 28, "feedback": "Muy bien: punto final cercano al teórico"},
+                    {"maxError": 0.5, "score": 21, "feedback": "Aceptable: punto final dentro de tolerancia"},
+                    {"maxError": 1.0, "score": 14, "feedback": "Deficiente: punto final alejado del teórico"},
                     {"maxError": 999, "score": 0, "feedback": "Incorrecto: punto final no detectado"},
                 ],
             },
             {
-                "id": "calculation", "label": "Cálculo correcto del resultado", "weight": 25, "type": "range",
+                "id": "calculation", "label": "Cálculo correcto del resultado", "weight": 15, "type": "range",
                 "scoring": [
-                    {"maxError": 1, "score": 25, "feedback": "Cálculo exacto"},
-                    {"maxError": 2, "score": 20, "feedback": "Cálculo con error menor al 2%"},
-                    {"maxError": 5, "score": 15, "feedback": "Cálculo con error menor al 5%"},
-                    {"maxError": 10, "score": 5, "feedback": "Cálculo con error significativo"},
+                    {"maxError": 1, "score": 15, "feedback": "Cálculo exacto"},
+                    {"maxError": 2, "score": 12, "feedback": "Cálculo con error menor al 2%"},
+                    {"maxError": 5, "score": 9, "feedback": "Cálculo con error menor al 5%"},
+                    {"maxError": 10, "score": 3, "feedback": "Cálculo con error significativo"},
                     {"maxError": 999, "score": 0, "feedback": "Cálculo incorrecto"},
                 ],
             },

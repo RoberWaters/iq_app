@@ -60,7 +60,7 @@ const STEP_CONFIGS_BY_PRACTICE = {
       vesselH: 200,
       baseX: 128,
       baseY: 350,
-      hint: 'Arrastra la probeta al matraz →',
+      hint: 'Haz clic sobre la probeta para verter →',
     },
     {
       label: 'HNO₃ 1:1 — 1 mL',
@@ -70,7 +70,7 @@ const STEP_CONFIGS_BY_PRACTICE = {
       vesselH: 88,
       baseX: 150,
       baseY: 252,
-      hint: 'Arrastra el frasco de HNO₃ al matraz →',
+      hint: 'Haz clic sobre el frasco de HNO₃ para verter →',
     },
     {
       label: 'AgNO₃ 0.10 M — 50 mL',
@@ -80,7 +80,7 @@ const STEP_CONFIGS_BY_PRACTICE = {
       vesselH: 110,
       baseX: 128,
       baseY: 278,
-      hint: 'Arrastra el vaso de AgNO₃ al matraz →',
+      hint: 'Haz clic sobre el vaso de AgNO₃ para verter →',
     },
     {
       label: 'Papel aluminio',
@@ -90,7 +90,7 @@ const STEP_CONFIGS_BY_PRACTICE = {
       vesselH: 60,
       baseX: 150,
       baseY: 280,
-      hint: 'Arrastra el papel aluminio al matraz →',
+      hint: 'Haz clic sobre el papel aluminio para colocar →',
     },
     {
       label: 'Nitrobenceno — 1 mL',
@@ -100,7 +100,7 @@ const STEP_CONFIGS_BY_PRACTICE = {
       vesselH: 88,
       baseX: 150,
       baseY: 252,
-      hint: 'Arrastra el frasco de nitrobenceno al matraz →',
+      hint: 'Haz clic sobre el frasco de nitrobenceno para verter →',
     },
     {
       label: 'Alumbre férrico — 1 mL',
@@ -333,24 +333,20 @@ export default function SequentialAssemblyBench({
     return Math.hypot(ax - flaskX, ay - flaskCY) < SNAP_DISTANCE;
   }, [vesselCX, vesselCY, flaskX, flaskCY]);
 
-  // Drag handlers applied to the outer wrapper Group
+  // Click-to-pour handlers (replaces drag): tap the vessel to trigger
+  // the pour animation. Parent advances state when animation completes.
   const dragHandlers = isDragStep ? {
-    draggable: true,
-    onDragMove: (e) => {
-      setNearTarget(checkProximity(e.target.position()));
+    onClick: () => {
+      if (onExecuteStep) setTimeout(onExecuteStep, 0);
     },
-    onDragEnd: (e) => {
-      const near = checkProximity(e.target.position());
-      // Always snap back to rest position
-      e.target.position({ x: 0, y: 0 });
-      e.target.getLayer()?.batchDraw();
-      setNearTarget(false);
-      if (near && onExecuteStep) setTimeout(onExecuteStep, 0);
+    onTap: () => {
+      if (onExecuteStep) setTimeout(onExecuteStep, 0);
     },
-    onMouseEnter: (e) => setCursor(e, 'grab'),
+    onMouseEnter: (e) => setCursor(e, 'pointer'),
     onMouseLeave: (e) => setCursor(e, 'default'),
-    onDragStart: (e) => setCursor(e, 'grabbing'),
   } : {};
+  // Suppress unused-warning for legacy proximity helpers
+  void checkProximity; void setNearTarget;
 
   // Click handlers for drop mode (add_indicator step)
   const dropClickHandlers = (isDropStep && !completed && !isDropping) ? {

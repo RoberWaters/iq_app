@@ -89,7 +89,7 @@ function InteractiveAssemblyView({
     erlenmeyerFill, erlenmeyerColor,
     cylinderLevel, bufferAmount,
     dropCount, pendingAdvance,
-    pourWater, confirmAdvance, completeBuffer,
+    pourWater, holdPourWater, stopPourWater, confirmAdvance, completeBuffer,
     addIndicatorDrop, finishAssembly, cleanup, reset,
     // Stirrer state
     stirrerOn, stirBarInFlask, stirrerSpeed,
@@ -98,6 +98,7 @@ function InteractiveAssemblyView({
     spotColor, spotOpacity,
   } = assembly;
   const [showSummary, setShowSummary] = useState(false);
+  const [pouringStep1, setPouringStep1] = useState(false);
 
   // ── Bottle measurement state for sub-step 2 (buffer from amber bottle) ──
   const bufferStep = steps[1]; // second step = buffer (index 1)
@@ -112,6 +113,8 @@ function InteractiveAssemblyView({
   const [originalDrainVolume, setOriginalDrainVolume] = useState(0);
   const bottleInterval = useRef(null);
   const drainInterval = useRef(null);
+  const drainDelayTimeout = useRef(null);
+  const fillDelayTimeout = useRef(null);
 
   const fillIncrement = bottleCapacity <= 10 ? 0.05 : bottleCapacity >= 100 ? 0.8 : 0.2;
   const drainIncrement = bottleCapacity <= 10 ? 0.05 : bottleCapacity >= 100 ? 1.0 : 0.3;
@@ -119,18 +122,26 @@ function InteractiveAssemblyView({
 
   // Phase 1: Fill cylinder from bottle
   const startBottleFill = useCallback(() => {
-    if (currentSubStep !== 2 || drainStarted || bottleInterval.current) return;
+    if (currentSubStep !== 2 || drainStarted || bottleInterval.current || fillDelayTimeout.current) return;
     setBottleFilling(true);
-    bottleInterval.current = setInterval(() => {
-      setBottleVolume(prev => {
-        const next = prev + fillIncrement;
-        return next > bottleCapacity ? bottleCapacity : Math.round(next * 100) / 100;
-      });
-    }, 100);
+    // Wait for the bottle tilt animation to bring its spout over the cylinder
+    fillDelayTimeout.current = setTimeout(() => {
+      fillDelayTimeout.current = null;
+      bottleInterval.current = setInterval(() => {
+        setBottleVolume(prev => {
+          const next = prev + fillIncrement;
+          return next > bottleCapacity ? bottleCapacity : Math.round(next * 100) / 100;
+        });
+      }, 100);
+    }, 600);
   }, [currentSubStep, drainStarted, bottleCapacity, fillIncrement]);
 
   const stopBottleFill = useCallback(() => {
     setBottleFilling(false);
+    if (fillDelayTimeout.current) {
+      clearTimeout(fillDelayTimeout.current);
+      fillDelayTimeout.current = null;
+    }
     if (bottleInterval.current) {
       clearInterval(bottleInterval.current);
       bottleInterval.current = null;
@@ -139,28 +150,38 @@ function InteractiveAssemblyView({
 
   // Phase 2: Drain cylinder to flask
   const startCylinderDrain = useCallback(() => {
-    if (currentSubStep !== 2 || bottleFilling || bottleVolume < minDrainThreshold || drainInterval.current) return;
+    if (currentSubStep !== 2 || bottleFilling || drainInterval.current || drainDelayTimeout.current) return;
+    if (!drainStarted && bottleVolume < minDrainThreshold) return;
+    if (bottleVolume <= 0) return;
     if (!drainStarted) {
       setDrainStarted(true);
       setOriginalDrainVolume(bottleVolume);
     }
     setCylinderDraining(true);
-    drainInterval.current = setInterval(() => {
-      setBottleVolume(prev => {
-        const next = Math.round((prev - drainIncrement) * 100) / 100;
-        if (next <= 0) {
-          clearInterval(drainInterval.current);
-          drainInterval.current = null;
-          setCylinderDraining(false);
-          return 0;
-        }
-        return next;
-      });
-    }, 100);
+    // Wait for the cylinder tilt to bring its spout over the flask mouth
+    drainDelayTimeout.current = setTimeout(() => {
+      drainDelayTimeout.current = null;
+      drainInterval.current = setInterval(() => {
+        setBottleVolume(prev => {
+          const next = Math.round((prev - drainIncrement) * 100) / 100;
+          if (next <= 0) {
+            clearInterval(drainInterval.current);
+            drainInterval.current = null;
+            setCylinderDraining(false);
+            return 0;
+          }
+          return next;
+        });
+      }, 100);
+    }, 650);
   }, [currentSubStep, bottleFilling, bottleVolume, drainStarted, drainIncrement, minDrainThreshold]);
 
   const stopCylinderDrain = useCallback(() => {
     setCylinderDraining(false);
+    if (drainDelayTimeout.current) {
+      clearTimeout(drainDelayTimeout.current);
+      drainDelayTimeout.current = null;
+    }
     if (drainInterval.current) {
       clearInterval(drainInterval.current);
       drainInterval.current = null;
@@ -193,6 +214,21 @@ function InteractiveAssemblyView({
       window.removeEventListener('touchend', handleUp);
     };
   }, [stopBottleFill, stopCylinderDrain, currentSubStep, isBottleBuffer]);
+
+  // Global pointer release for sub-step 1 hold-to-pour
+  useEffect(() => {
+    if (currentSubStep !== 1) return;
+    const handleUp = () => { stopPourWater(); setPouringStep1(false); };
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('mouseup', handleUp);
+    window.addEventListener('touchend', handleUp);
+    return () => {
+      handleUp();
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('touchend', handleUp);
+    };
+  }, [currentSubStep, stopPourWater]);
 
   const adjustBottle = useCallback((delta) => {
     if (drainStarted || bottleFilling) return;
@@ -318,7 +354,7 @@ function InteractiveAssemblyView({
               </button>
             </div>
 
-            {/* Sub-step 1: Drag cylinder to erlenmeyer */}
+            {/* Sub-step 1: Hold the cylinder in the canvas to pour */}
             {currentSubStep === 1 && !pendingAdvance && (
               <div>
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
@@ -332,9 +368,7 @@ function InteractiveAssemblyView({
                   fontSize: '0.85rem',
                   color: '#1D4ED8',
                 }}>
-                  {isAnimating
-                    ? 'Vaciando...'
-                    : 'Arrastra la probeta hacia el Erlenmeyer en el canvas'}
+                  Mantén presionada la probeta en el canvas para vaciarla en el Erlenmeyer
                 </div>
               </div>
             )}
@@ -387,10 +421,8 @@ function InteractiveAssemblyView({
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                  <Button onClick={() => adjustBottle(-1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 1}>-1</Button>
-                  <Button onClick={() => adjustBottle(-0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 0.5}>-0.5</Button>
-                  <Button onClick={() => adjustBottle(0.5)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume >= bottleCapacity}>+0.5</Button>
-                  <Button onClick={() => adjustBottle(1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume > bottleCapacity - 1}>+1</Button>
+                  <Button onClick={() => adjustBottle(-0.1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume < 0.1}>-0.1</Button>
+                  <Button onClick={() => adjustBottle(0.1)} variant="outline" style={{ flex: 1 }} disabled={bottleFilling || bottleVolume >= bottleCapacity}>+0.1</Button>
                 </div>
 
                 <Button onClick={resetBottle} variant="outline" style={{ width: '100%', marginBottom: '8px' }} disabled={bottleFilling || bottleVolume < 0.1}>
@@ -518,9 +550,7 @@ function InteractiveAssemblyView({
                   color: '#1D4ED8',
                   marginBottom: '8px',
                 }}>
-                  {isAnimating
-                    ? 'Agregando gota...'
-                    : 'Haz clic sobre el frasco de indicador en el canvas'}
+                  Haz clic sobre el frasco de indicador en el canvas
                 </div>
 
                 {dropCount > 0 && !(stirrerOn && stirBarInFlask) && (
@@ -595,7 +625,22 @@ function InteractiveAssemblyView({
 
         {/* Right: Interactive Canvas */}
         <div className="titration-canvas-wrapper">
-          {currentSubStep === 2 && isBottleBuffer ? (
+          {currentSubStep === 1 ? (
+            <BottleBench
+              width={600}
+              height={480}
+              currentVolume={cylinderLevel}
+              maxVolume={maxCapacity}
+              isFilling={false}
+              liquidColor="#C8E4F4"
+              showBottle={false}
+              showFlask={true}
+              flaskFillLevel={erlenmeyerFill}
+              flaskLiquidColor={erlenmeyerColor}
+              isDraining={pouringStep1}
+              onCylinderPress={() => { setPouringStep1(true); holdPourWater(); }}
+            />
+          ) : currentSubStep === 2 && isBottleBuffer ? (
             <BottleBench
               width={600}
               height={480}
@@ -1170,11 +1215,7 @@ function SequentialAssemblyView({
                       color: '#1D4ED8',
                       marginBottom: '12px',
                     }}>
-                      {autoDropping
-                        ? `Agregando gotas automáticamente... (${dropCount}/${autoDropTargetRef.current})`
-                        : isDropping
-                          ? 'Agregando gota...'
-                          : 'Haz clic sobre el frasco de indicador en el canvas o usa el gotero automático'}
+                      Haz clic sobre el frasco de indicador en el canvas o usa el gotero automático
                     </div>
 
                     {/* Auto-drop input */}
@@ -1336,9 +1377,7 @@ function SequentialAssemblyView({
                     fontSize: '0.85rem',
                     color: '#1D4ED8',
                   }}>
-                    {isAnimating
-                      ? getAnimatingLabel(currentStep.action)
-                      : 'Arrastra el reactivo hacia el matraz en el canvas →'}
+                    Haz clic sobre el reactivo en el canvas para verter →
                   </div>
                 )}
 
