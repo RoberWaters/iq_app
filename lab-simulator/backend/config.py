@@ -26,8 +26,10 @@ class Settings:
     PASSWORD_REQUIRE_LETTER: bool = True
     DATABASE_URL: str = "sqlite+aiosqlite:///./lab_simulator.db"
     CORS_ORIGINS: List[str] = field(default_factory=lambda: [
-        "http://localhost:5173",
-        "http://localhost:3000",
+        o.strip() for o in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://localhost:3000"
+        ).split(",")
     ])
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
