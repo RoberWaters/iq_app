@@ -6,25 +6,25 @@ from pydantic import BaseModel, Field
 
 class SectionCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
-    next_practice: Optional[str] = None
-    next_date: Optional[str] = None
-    status: str = "bloqueada"
+    description: Optional[str] = Field(None, max_length=200)
+    academic_year: Optional[str] = Field(None, max_length=20)
+    academic_period: Optional[str] = Field(None, pattern=r"^(I|II|III)$")
 
 
 class SectionUpdate(BaseModel):
     code: Optional[str] = Field(None, min_length=1, max_length=50)
-    next_practice: Optional[str] = None
-    next_date: Optional[str] = None
-    status: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=200)
+    academic_year: Optional[str] = Field(None, max_length=20)
+    academic_period: Optional[str] = Field(None, pattern=r"^(I|II|III)$")
 
 
 class SectionResponse(BaseModel):
     id: str
     code: str
+    description: Optional[str] = None
+    academic_year: Optional[str] = None
+    academic_period: Optional[str] = None
     student_count: int
-    next_practice: Optional[str] = None
-    next_date: Optional[str] = None
-    status: str
     created_at: datetime
     updated_at: datetime
 
@@ -60,6 +60,9 @@ class StudentResponse(BaseModel):
     student_code: int
     grades: dict[str, Optional[float]] = Field(default_factory=dict)
     practices: list[StudentPracticeProgress] = Field(default_factory=list)
+    average_score: Optional[float] = None
+    scored_count: int = 0
+    total_practices: int = 0
 
 
 class StudentSessionSummary(BaseModel):
@@ -81,24 +84,20 @@ class StudentDetailResponse(BaseModel):
     section_code: str
     practices: list[StudentPracticeProgress] = Field(default_factory=list)
     sessions: list[StudentSessionSummary] = Field(default_factory=list)
+    average_score: Optional[float] = None
+    scored_count: int = 0
+    total_practices: int = 0
 
 
-PRACTICE_STATUSES = ("active", "blocked", "closed")
-
-
-PRACTICE_STATUSES = ("active", "blocked", "closed")
+PRACTICE_STATUSES = ("active", "blocked")
 
 
 class SectionPracticeCreate(BaseModel):
     practice_id: int
-    open_date: Optional[str] = None
-    close_date: Optional[str] = None
     status: str = "blocked"
 
 
 class SectionPracticeUpdate(BaseModel):
-    open_date: Optional[str] = None
-    close_date: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -107,8 +106,6 @@ class SectionPracticeResponse(BaseModel):
     practice_id: int
     name: str
     category: str
-    open_date: Optional[str] = None
-    close_date: Optional[str] = None
     status: str
 
 

@@ -153,3 +153,5 @@ export const downloadSectionImportExcelTemplate = (code) =>
 
 export const exportSectionResults = (code) =>
   downloadFile(`/teacher/sections/${code}/export`, `section_${code}_results.csv`);
+
+export const getStudentDashboard = () => request('/student/dashboard');

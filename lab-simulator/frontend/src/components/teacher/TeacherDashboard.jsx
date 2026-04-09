@@ -10,23 +10,11 @@ import {
 import { useAuthStore } from '../../store/useAuthStore';
 import '../../styles/teacher.css';
 
-const STATUS_CONFIG = {
-  programada: { label: 'Programada', className: 'badge--warning' },
-  bloqueada: { label: 'Bloqueada', className: 'badge--danger' },
-  habilitada: { label: 'Habilitada', className: 'badge--success' },
-};
-
-const STATUS_OPTIONS = [
-  { value: 'bloqueada', label: 'Bloqueada' },
-  { value: 'programada', label: 'Programada' },
-  { value: 'habilitada', label: 'Habilitada' },
-];
-
 const EMPTY_FORM = {
   code: '',
-  next_practice: '',
-  next_date: '',
-  status: 'bloqueada',
+  description: '',
+  academic_year: '',
+  academic_period: '',
 };
 
 function buildTeacherName(profile) {
@@ -36,16 +24,12 @@ function buildTeacherName(profile) {
 
 function SectionModal({ initial, onClose, onSave }) {
   const isEdit = Boolean(initial?.id);
-  const [form, setForm] = useState(
-    isEdit
-      ? {
-          code: initial.code,
-          next_practice: initial.next_practice ?? '',
-          next_date: initial.next_date ?? '',
-          status: initial.status,
-        }
-      : EMPTY_FORM
-  );
+  const [form, setForm] = useState(isEdit ? {
+    code: initial.code,
+    description: initial.description || '',
+    academic_year: initial.academic_year || '',
+    academic_period: initial.academic_period || '',
+  } : EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -60,9 +44,9 @@ function SectionModal({ initial, onClose, onSave }) {
     try {
       const payload = {
         code: form.code.trim(),
-        next_practice: form.next_practice.trim() || null,
-        next_date: form.next_date.trim() || null,
-        status: form.status,
+        description: form.description.trim() || null,
+        academic_year: form.academic_year.trim() || null,
+        academic_period: form.academic_period || null,
       };
       if (isEdit) {
         await updateSection(initial.id, payload);
@@ -97,43 +81,45 @@ function SectionModal({ initial, onClose, onSave }) {
               className="modal-form__input"
               value={form.code}
               onChange={(event) => setField('code', event.target.value)}
-              placeholder="Ej: 10-B"
+              placeholder=""
               required
               autoFocus
             />
           </div>
 
           <div className="modal-form__field">
-            <label className="modal-form__label">Proxima practica</label>
+            <label className="modal-form__label">Descripcion</label>
             <input
               className="modal-form__input"
-              value={form.next_practice}
-              onChange={(event) => setField('next_practice', event.target.value)}
-              placeholder="Opcional"
+              value={form.description}
+              onChange={(event) => setField('description', event.target.value)}
+              placeholder=""
             />
           </div>
 
-          <div className="modal-form__field">
-            <label className="modal-form__label">Fecha visible</label>
-            <input
-              className="modal-form__input"
-              value={form.next_date}
-              onChange={(event) => setField('next_date', event.target.value)}
-              placeholder="Ej: 25/04 08:00"
-            />
-          </div>
-
-          <div className="modal-form__field">
-            <label className="modal-form__label">Estado</label>
-            <select
-              className="modal-form__select"
-              value={form.status}
-              onChange={(event) => setField('status', event.target.value)}
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+          <div className="modal-form__row">
+            <div className="modal-form__field">
+              <label className="modal-form__label">Año Academico</label>
+              <input
+                className="modal-form__input"
+                value={form.academic_year}
+                onChange={(event) => setField('academic_year', event.target.value)}
+                placeholder=""
+              />
+            </div>
+            <div className="modal-form__field">
+              <label className="modal-form__label">Periodo Academico</label>
+              <select
+                className="modal-form__input"
+                value={form.academic_period}
+                onChange={(event) => setField('academic_period', event.target.value)}
+              >
+                <option value="">-- Seleccionar --</option>
+                <option value="I">I</option>
+                <option value="II">II</option>
+                <option value="III">III</option>
+              </select>
+            </div>
           </div>
 
           {error && <p className="modal-form__error">{error}</p>}
@@ -196,8 +182,7 @@ export default function TeacherDashboard() {
 
   const filteredSections = useMemo(
     () => sections.filter((section) =>
-      section.code.toLowerCase().includes(search.toLowerCase())
-      || (section.next_practice ?? '').toLowerCase().includes(search.toLowerCase())),
+      section.code.toLowerCase().includes(search.toLowerCase())),
     [search, sections],
   );
 
@@ -243,7 +228,6 @@ export default function TeacherDashboard() {
                   onChange={(event) => setSearch(event.target.value)}
                   className="search-box__input"
                 />
-                <span className="search-box__icon">&#128269;</span>
               </div>
               <button className="btn btn--primary btn--sm" onClick={() => setModal('create')}>
                 + Nueva seccion
@@ -261,25 +245,17 @@ export default function TeacherDashboard() {
                 <tr>
                   <th>Seccion</th>
                   <th>Estudiantes</th>
-                  <th>Proxima practica</th>
-                  <th>Estado</th>
                   <th />
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {filteredSections.map((section) => {
-                  const config = STATUS_CONFIG[section.status] ?? STATUS_CONFIG.bloqueada;
                   const confirming = confirmId === section.id;
                   return (
                     <tr key={section.id}>
                       <td className="t-table__bold">{section.code}</td>
                       <td>{section.student_count}</td>
-                      <td>
-                        {section.next_practice ?? '-'}
-                        {section.next_date && <span className="t-table__date">{section.next_date}</span>}
-                      </td>
-                      <td><span className={`badge ${config.className}`}>{config.label}</span></td>
                       <td>
                         <button
                           className="btn btn--primary btn--sm"

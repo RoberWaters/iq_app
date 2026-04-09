@@ -12,10 +12,10 @@ class Section(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     code = Column(String, nullable=False, unique=True)
+    description = Column(String, nullable=True)
+    academic_year = Column(String, nullable=True)
+    academic_period = Column(String, nullable=True)
     student_count = Column(Integer, default=0)
-    next_practice = Column(String, nullable=True)
-    next_date = Column(String, nullable=True)
-    status = Column(String, default="bloqueada")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

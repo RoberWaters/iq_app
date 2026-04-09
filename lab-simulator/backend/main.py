@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db
 from routers.auth import router as auth_router
+from routers.student import router as student_router
 from routers.teacher import router as teacher_router
 
 
@@ -43,6 +44,7 @@ _router_modules = [
 ]
 
 app.include_router(auth_router)
+app.include_router(student_router, prefix="/api")
 app.include_router(teacher_router, prefix="/api")
 
 for module_path, attr_name, prefix in _router_modules:

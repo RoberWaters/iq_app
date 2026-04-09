@@ -28,6 +28,9 @@ import TeacherDashboard from './components/teacher/TeacherDashboard';
 import SectionDetail from './components/teacher/SectionDetail';
 import AdminDashboard from './components/admin/AdminDashboard';
 
+// Student components
+import StudentDashboard from './components/student/StudentDashboard';
+
 // Store
 import useSimulatorStore from './store/useSimulatorStore';
 
@@ -64,8 +67,8 @@ const RoleBasedRedirect = () => {
   if (user?.role === 'teacher') {
     return <Navigate to="/teacher" replace />;
   }
-  
-  return <Navigate to="/practice" replace />;
+
+  return <Navigate to="/dashboard" replace />;
 };
 
 function App() {
@@ -78,9 +81,10 @@ function App() {
     checkAuth();
   }, [checkAuth]);
 
-  // Determinar si es ruta de teacher (sin header ni step indicator)
-  const isTeacherRoute = location.pathname.startsWith('/teacher') || 
-                         location.pathname.startsWith('/admin');
+  // Determinar si es ruta de teacher o student dashboard (sin header ni step indicator)
+  const isTeacherRoute = location.pathname.startsWith('/teacher') ||
+                         location.pathname.startsWith('/admin') ||
+                         location.pathname === '/dashboard';
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -104,7 +108,17 @@ function App() {
               }
             />
 
-            {/* ========== RUTA BASE DEL ESTUDIANTE ========== */}
+            {/* ========== DASHBOARD DEL ESTUDIANTE ========== */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <StudentDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ========== RUTA BASE DEL ESTUDIANTE (S1 - también accesible para docentes) ========== */}
             <Route
               path="/practice"
               element={

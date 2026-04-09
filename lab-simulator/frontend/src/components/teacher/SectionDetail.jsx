@@ -20,10 +20,10 @@ import {
 } from '../../api/client';
 import '../../styles/teacher.css';
 
+
 const PRACTICE_STATUS_CONFIG = {
   active: { label: 'Activa', className: 'badge--success' },
-  blocked: { label: 'Bloqueada', className: 'badge--danger' },
-  closed: { label: 'Cerrada', className: 'badge--warning' },
+  blocked: { label: 'Desactivada', className: 'badge--danger' },
 };
 const STUDENT_STATUS_CONFIG = {
   pendiente: { label: 'Pendiente', className: 'badge--danger' },
@@ -84,7 +84,10 @@ function StudentFormModal({ initial, onClose, onSave }) {
 
 function PracticeModal({ initial, catalog, onClose, onSave }) {
   const isEdit = Boolean(initial);
-  const [form, setForm] = useState(isEdit ? { practice_id: initial.practice_id, open_date: initial.open_date ?? '', close_date: initial.close_date ?? '', status: initial.status } : { practice_id: catalog[0]?.id ?? '', open_date: '', close_date: '', status: 'blocked' });
+  const availableCatalog = catalog.filter((p) => p.implemented);
+  const [form, setForm] = useState(isEdit
+    ? { practice_id: initial.practice_id, is_active: initial.status === 'active' }
+    : { practice_id: availableCatalog[0]?.id ?? '', is_active: false });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
@@ -94,7 +97,7 @@ function PracticeModal({ initial, catalog, onClose, onSave }) {
     setSaving(true);
     setError('');
     try {
-      await onSave({ practice_id: Number(form.practice_id), open_date: form.open_date.trim() || null, close_date: form.close_date.trim() || null, status: form.status });
+      await onSave({ practice_id: Number(form.practice_id), status: form.is_active ? 'active' : 'blocked' });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -111,17 +114,20 @@ function PracticeModal({ initial, catalog, onClose, onSave }) {
             <div className="modal-form__field">
               <label className="modal-form__label">Practica del catalogo</label>
               <select className="modal-form__select" value={form.practice_id} onChange={(event) => setField('practice_id', event.target.value)} required>
-                {catalog.map((practice) => <option key={practice.id} value={practice.id}>{practice.name} ({practice.category})</option>)}
+                {availableCatalog.map((practice) => <option key={practice.id} value={practice.id}>{practice.name} ({practice.category})</option>)}
               </select>
             </div>
           )}
-          <div className="modal-form__field"><label className="modal-form__label">Apertura</label><input className="modal-form__input" value={form.open_date} onChange={(event) => setField('open_date', event.target.value)} placeholder="Ej: 25/04 08:00" /></div>
-          <div className="modal-form__field"><label className="modal-form__label">Cierre</label><input className="modal-form__input" value={form.close_date} onChange={(event) => setField('close_date', event.target.value)} placeholder="Ej: 25/04 23:59" /></div>
-          <div className="modal-form__field">
-            <label className="modal-form__label">Estado</label>
-            <select className="modal-form__select" value={form.status} onChange={(event) => setField('status', event.target.value)}>
-              {PRACTICE_STATUSES.map((statusOption) => <option key={statusOption.value} value={statusOption.value}>{statusOption.label}</option>)}
-            </select>
+          <div className="modal-form__field modal-form__field--inline">
+            <input
+              type="checkbox"
+              id="is_active"
+              checked={form.is_active}
+              onChange={(event) => setField('is_active', event.target.checked)}
+            />
+            <label htmlFor="is_active" className="modal-form__label modal-form__label--inline">
+              Practica activa (visible para estudiantes)
+            </label>
           </div>
           {error && <p className="modal-form__error">{error}</p>}
           <div className="modal-form__footer">
@@ -249,7 +255,19 @@ function StudentDetailModal({ detail, onClose, onSaveGrade }) {
     <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
       <motion.div className="modal-box modal-box--xl" initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={{ duration: 0.15 }}>
         <div className="teacher-detail-header">
-          <div><h3 className="modal-box__title">{detail.name}</h3><p className="teacher-inline-copy">Codigo {detail.student_code} · Seccion {detail.section_code}</p></div>
+          <div>
+            <h3 className="modal-box__title">{detail.name}</h3>
+            <p className="teacher-inline-copy">
+              Codigo {detail.student_code} · Seccion {detail.section_code}
+              {detail.total_practices > 0 && (
+                <span className="teacher-detail-avg">
+                  {' · Promedio: '}
+                  <strong>{detail.average_score != null ? detail.average_score.toFixed(1) : '-'}</strong>
+                  {` (${detail.scored_count}/${detail.total_practices} practicas calificadas)`}
+                </span>
+              )}
+            </p>
+          </div>
           <button className="section-close" onClick={onClose} aria-label="Cerrar">&times;</button>
         </div>
         {error && <p className="teacher-error-banner">{error}</p>}
@@ -386,7 +404,9 @@ export default function SectionDetail() {
     await upsertGrade({ student_id: detail.id, section_practice_id: sectionPracticeId, score });
     const nextDetail = await getStudentDetail(sectionCode, detail.id);
     setDetail(nextDetail);
-    setStudents((current) => current.map((student) => student.id === detail.id ? { ...student, grades: Object.fromEntries(nextDetail.practices.map((item) => [item.section_practice_id, item.final_score])), practices: nextDetail.practices } : student));
+    setStudents((current) => current.map((student) => student.id === detail.id
+      ? { ...student, grades: Object.fromEntries(nextDetail.practices.map((item) => [item.section_practice_id, item.final_score])), practices: nextDetail.practices, average_score: nextDetail.average_score, scored_count: nextDetail.scored_count, total_practices: nextDetail.total_practices }
+      : student));
   }
 
   const filteredStudents = useMemo(() => students.filter((student) => {
@@ -424,17 +444,22 @@ export default function SectionDetail() {
                   </div>
                 </div>
                 <table className="t-table">
-                  <thead><tr><th>Estudiante</th><th>Codigo</th>{practices.map((practice) => <th key={practice.id}>{practice.name}</th>)}<th>Acciones</th></tr></thead>
+                  <thead><tr><th>Estudiante</th><th>Codigo</th>{practices.map((practice) => <th key={practice.id}>{practice.name}</th>)}<th>Promedio</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {filteredStudents.map((student) => (
                       <tr key={student.id}>
                         <td className="t-table__bold">{student.name}</td>
                         <td className="mono">{student.student_code}</td>
                         {practices.map((practice) => <td key={practice.id}>{formatStudentPracticeCell(student.practices.find((item) => item.section_practice_id === practice.id))}</td>)}
+                        <td className="mono t-table__bold">
+                          {student.average_score != null
+                            ? <>{student.average_score.toFixed(1)} <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)', fontSize: '0.8em' }}>({student.scored_count}/{student.total_practices})</span></>
+                            : <span style={{ color: 'var(--color-text-secondary)' }}>- ({student.scored_count}/{student.total_practices})</span>}
+                        </td>
                         <td><div className="t-table__actions"><button className="btn btn--primary btn--sm" onClick={() => openStudentDetail(student.id)}>Ver detalle</button><button className="btn btn--icon" onClick={() => setStudentModal(student)}>Editar</button><button className="btn btn--icon btn--icon-danger" onClick={() => setConfirmAction({ type: 'student', id: student.id, label: student.name })}>Borrar</button></div></td>
                       </tr>
                     ))}
-                    {filteredStudents.length === 0 && <tr><td colSpan={3 + practices.length} className="teacher-empty-cell">No se encontraron estudiantes.</td></tr>}
+                    {filteredStudents.length === 0 && <tr><td colSpan={4 + practices.length} className="teacher-empty-cell">No se encontraron estudiantes.</td></tr>}
                   </tbody>
                 </table>
               </motion.div>
@@ -442,13 +467,13 @@ export default function SectionDetail() {
               <motion.div key="practices" className="tab-content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                 <div className="toolbar"><div className="toolbar__left" /><button className="btn btn--primary btn--sm" onClick={() => setPracticeModal('create')}>+ Asignar practica</button></div>
                 <table className="t-table">
-                  <thead><tr><th>Practica</th><th>Categoria</th><th>Apertura</th><th>Cierre</th><th>Estado</th><th>Acciones</th></tr></thead>
+                  <thead><tr><th>Practica</th><th>Categoria</th><th>Estado</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {practices.map((practice) => {
                       const config = PRACTICE_STATUS_CONFIG[practice.status] ?? PRACTICE_STATUS_CONFIG.blocked;
-                      return <tr key={practice.id}><td className="t-table__bold">{practice.name}</td><td>{practice.category}</td><td className="mono">{practice.open_date ?? '-'}</td><td className="mono">{practice.close_date ?? '-'}</td><td><span className={`badge ${config.className}`}>{config.label}</span></td><td><div className="t-table__actions"><button className="btn btn--icon" onClick={() => setPracticeModal(practice)}>Editar</button><button className="btn btn--icon btn--icon-danger" onClick={() => setConfirmAction({ type: 'practice', id: practice.id, label: practice.name })}>Borrar</button></div></td></tr>;
+                      return <tr key={practice.id}><td className="t-table__bold">{practice.name}</td><td>{practice.category}</td><td><span className={`badge ${config.className}`}>{config.label}</span></td><td><div className="t-table__actions"><button className="btn btn--icon" onClick={() => setPracticeModal(practice)}>Editar</button><button className="btn btn--icon btn--icon-danger" onClick={() => setConfirmAction({ type: 'practice', id: practice.id, label: practice.name })}>Borrar</button></div></td></tr>;
                     })}
-                    {practices.length === 0 && <tr><td colSpan={6} className="teacher-empty-cell">No hay practicas asignadas.</td></tr>}
+                    {practices.length === 0 && <tr><td colSpan={4} className="teacher-empty-cell">No hay practicas asignadas.</td></tr>}
                   </tbody>
                 </table>
               </motion.div>

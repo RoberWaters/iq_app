@@ -7,7 +7,7 @@ import './ChangePassword.css';
 const ChangePassword = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { changePassword, firstLoginChange, logout, isLoading, error, clearError } = useAuthStore();
+  const { changePassword, firstLoginChange, logout, isLoading, error, clearError, user } = useAuthStore();
 
   // Detectar si es primer login
   const isFirstLogin = location.state?.firstLogin === true;
@@ -97,21 +97,19 @@ const ChangePassword = () => {
 
     if (result.success) {
       setSuccessMessage('Contraseña cambiada exitosamente');
-      
-      // Redirigir después de un breve delay
+
       setTimeout(() => {
-        navigate('/practices');
+        navigate(user?.role === 'teacher' ? '/teacher' : '/dashboard');
       }, 1500);
     }
   };
 
   const handleCancel = () => {
     if (isFirstLogin) {
-      // En primer login, cancelar hace logout
       logout();
       navigate('/login');
     } else {
-      navigate('/practices');
+      navigate(user?.role === 'teacher' ? '/teacher' : '/dashboard');
     }
   };
 

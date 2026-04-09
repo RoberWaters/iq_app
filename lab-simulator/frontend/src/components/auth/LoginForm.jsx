@@ -68,7 +68,7 @@ const LoginForm = () => {
     if (result.user?.role === 'teacher') {
       navigate('/teacher');
     } else {
-      navigate('/practices');
+      navigate('/dashboard');
     }
   }
 }

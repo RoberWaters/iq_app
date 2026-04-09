@@ -68,6 +68,11 @@ def _run_sqlite_migrations(sync_conn) -> None:
             ("last_session_id", "ALTER TABLE grades ADD COLUMN last_session_id VARCHAR"),
             ("updated_at", "ALTER TABLE grades ADD COLUMN updated_at DATETIME"),
         ],
+        "sections": [
+            ("description", "ALTER TABLE sections ADD COLUMN description VARCHAR"),
+            ("academic_year", "ALTER TABLE sections ADD COLUMN academic_year VARCHAR"),
+            ("academic_period", "ALTER TABLE sections ADD COLUMN academic_period VARCHAR"),
+        ],
     }
 
     for table_name, statements in column_updates.items():

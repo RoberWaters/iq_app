@@ -38,7 +38,7 @@ class User(Base):
         nullable=False
     )
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole),
+        Enum(UserRole, values_callable=lambda x: [e.value for e in x]),
         nullable=False
     )
     must_change_password: Mapped[bool] = mapped_column(

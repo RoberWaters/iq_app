@@ -58,31 +58,14 @@ def _resolve_practice_category(practice_id: int) -> str:
 
 
 def _build_section_response(section: Section) -> SectionResponse:
-    loaded_practices = section.__dict__.get("practices", []) or []
     loaded_students = section.__dict__.get("students", []) or []
-    practices = sorted(
-        list(loaded_practices),
-        key=lambda item: (
-            {"active": 0, "blocked": 1, "closed": 2}.get(item.status, 9),
-            item.open_date or "",
-            item.created_at.isoformat() if item.created_at else "",
-        ),
-    )
-    next_practice = None
-    next_date = None
-    for practice in practices:
-        if practice.status in {"active", "blocked"}:
-            next_practice = _resolve_practice_name(practice.practice_id, getattr(practice, "name", None))
-            next_date = practice.open_date or practice.close_date
-            break
-
     return SectionResponse(
         id=section.id,
         code=section.code,
+        description=section.description,
+        academic_year=section.academic_year,
+        academic_period=section.academic_period,
         student_count=len(loaded_students) if loaded_students else (section.student_count or 0),
-        next_practice=next_practice or section.next_practice,
-        next_date=next_date or section.next_date,
-        status=section.status,
         created_at=section.created_at,
         updated_at=section.updated_at,
     )
@@ -94,8 +77,6 @@ def _enrich_section_practice(sp: SectionPractice) -> SectionPracticeResponse:
         practice_id=sp.practice_id,
         name=_resolve_practice_name(sp.practice_id, getattr(sp, "name", None)),
         category=_resolve_practice_category(sp.practice_id),
-        open_date=sp.open_date,
-        close_date=sp.close_date,
         status=sp.status,
     )
 
@@ -169,12 +150,17 @@ def _build_student_response(
         sessions_by_practice_id.setdefault(session.practice_id, session)
     progress = _build_progress(student, section_practices, grades_by_practice, sessions_by_practice_id)
     grades = {item.section_practice_id: item.final_score for item in progress}
+    scored = [p.final_score for p in progress if p.final_score is not None]
+    average_score = round(sum(scored) / len(scored), 1) if scored else None
     return StudentResponse(
         id=student.id,
         name=student.name,
         student_code=student.student_code,
         grades=grades,
         practices=progress,
+        average_score=average_score,
+        scored_count=len(scored),
+        total_practices=len(progress),
     )
 
 
@@ -362,6 +348,9 @@ async def get_student_detail(code: str, student_id: str, db: AsyncSession = Depe
         section_code=section.code,
         practices=student_response.practices,
         sessions=session_items,
+        average_score=student_response.average_score,
+        scored_count=student_response.scored_count,
+        total_practices=student_response.total_practices,
     )
 
 
@@ -463,8 +452,11 @@ async def list_section_practices(code: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/sections/{code}/practices", response_model=SectionPracticeResponse, status_code=201)
 async def create_section_practice(code: str, payload: SectionPracticeCreate, db: AsyncSession = Depends(get_db)):
-    if not get_practice(payload.practice_id):
+    practice_config = get_practice(payload.practice_id)
+    if not practice_config:
         raise HTTPException(status_code=400, detail="La practica no existe en el catalogo")
+    if not practice_config.get("implemented", False):
+        raise HTTPException(status_code=400, detail="Esta practica aun no esta disponible (no implementada)")
 
     section = await _section_by_code(code, db)
     duplicate = await db.execute(
@@ -561,6 +553,7 @@ async def export_section_results(code: str, db: AsyncSession = Depends(get_db)):
                 f"{practice_name} - Final",
             ]
         )
+    header.append("Promedio")
     writer.writerow(header)
 
     for student in students:
@@ -576,6 +569,7 @@ async def export_section_results(code: str, db: AsyncSession = Depends(get_db)):
                     progress.final_score if progress and progress.final_score is not None else "",
                 ]
             )
+        row.append(student.average_score if student.average_score is not None else "")
         writer.writerow(row)
 
     return StreamingResponse(

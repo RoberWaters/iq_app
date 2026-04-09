@@ -110,6 +110,20 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
             )
             student = student_result.scalar_one_or_none()
 
+    # If a student is making this request, check that the practice is accessible
+    if student and section:
+        sp_result = await db.execute(
+            select(SectionPractice).where(
+                SectionPractice.section_id == section.id,
+                SectionPractice.practice_id == body.practice_id,
+            )
+        )
+        sp = sp_result.scalar_one_or_none()
+        if sp is None:
+            raise HTTPException(status_code=403, detail="Esta practica no esta asignada a tu seccion")
+        if sp.status != "active":
+            raise HTTPException(status_code=403, detail="Esta practica no esta disponible")
+
     expected_vol = None
     measurement = practice.get("measurement")
     if measurement and practice.get("titration"):

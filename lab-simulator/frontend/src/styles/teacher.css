@@ -429,6 +429,8 @@
   transition: border-color 0.2s, box-shadow 0.2s;
   background: var(--color-surface);
   color: var(--color-text);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .table-input {
@@ -440,6 +442,24 @@
   font-size: 0.82rem;
   color: #b91c1c;
   margin-top: 2px;
+}
+
+.modal-form__field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-form__label--inline {
+  margin: 0;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.modal-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .modal-form__footer {
